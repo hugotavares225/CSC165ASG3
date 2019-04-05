@@ -22,16 +22,14 @@ public class GhostAvatar {
 	public UUID getID() {
 		return id;
 	}
-	public void setID(UUID id) {
-		this.id = id;
-	}
 	
 	/*Set and Return Ghost Avatar position*/
 	public Vector3 getPosition() {
 		return position;
 	}
+	
 	public void setPosition(Vector3 position) {
-		this.position = position;
+		node.setLocalPosition(position);
 	}
 	
 	/*Set and Return Ghost Avatar node*/

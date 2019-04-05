@@ -65,6 +65,7 @@ import ray.rml.Vector3f;
 import myGameEngine.dolphinMovement.*;
 import myGameEngine.nodeControllers.*;
 import net.java.games.input.Event;
+import myGameEngine.avatarMovement.MoveForwardAction;
 import myGameEngine.camera3PMovement.*;
 
 import ray.rage.rendersystem.states.*;
@@ -80,6 +81,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 					yawCameraLeft, yawCameraRight, pitchCameraUp, pitchCameraDown, gamePadYaw, 
 					gamePadPitch, gamePadBackForward, gamePadRightLeft;//offOnDolphin, //Action Camera Classes Declarations
 	private Camera camera;
+	private Action moveForwardAction;
 	
 	
 	//Declare Scene node variables
@@ -119,6 +121,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	private boolean isClientConnected = false;
 	private Vector<UUID> gameObjectsToRemove;	
 	private GameClient gameClient;
+	private static GameServerUDP server;
 
 	//skybox variables
 	private static final String SKYBOX_NAME = "SkyBox";
@@ -260,7 +263,10 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	protected void setupInputs() {
 		//New input manager
 		im = new GenericInputManager();
+		cameraForward = new CameraForward(camera, dolphinNode);
 		
+		//
+		moveForwardAction = new MoveForwardAction(dolphinNode, gameClient);
 		//Instantiate Action classes 
 		cameraForward = new CameraForward(camera, dolphinNode);
 		cameraBackward = new CameraBackward(camera, dolphinNode);
@@ -278,7 +284,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		gamePadYaw = new GamePadYaw(camera, dolphinNode);
 		
 		//attach action objects to gamepad
-		if(im.getFirstGamepadName() != null) {
+		/*if(im.getFirstGamepadName() != null) {
 			String gpName = im.getFirstGamepadName();
     		//move forward
     		im.associateAction(gpName, 
@@ -296,7 +302,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     		im.associateAction(gpName, 
     				net.java.games.input.Component.Identifier.Axis.RY,
     				gamePadPitch, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-		}
+		}*/
 			
 		//attach action objects to keyboard 
     	if(im.getKeyboardName() != null) {
@@ -305,9 +311,9 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     		//w; move forward
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.W,
-    				cameraForward, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    				moveForwardAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		//s; move backward
-    		im.associateAction(kbName, 
+    		/*im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.S, 
     				cameraBackward, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		//a; move left
@@ -337,7 +343,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     		//space bar; offOn
     		//im.associateAction(kbName, 
     				//net.java.games.input.Component.Identifier.Key.SPACE,
-    				//offOnDolphin, InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY);
+    				//offOnDolphin, InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY);*/
     	}
 	}
 	
@@ -510,20 +516,23 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         Scanner r = new Scanner(System.in);
 		System.out.println("Are you the host? (Enter y/n)");
 		String response = r.nextLine();
-		int serverPort = 8065;
+		int serverPort = 6000;
+		MyGame game; 
+
 		
 		//If you are host use your own ip address
 		if(response.charAt(0) == 'y')
 		{
 			System.out.println("You are the host");
-			GameServerUDP server = new GameServerUDP(serverPort);
+			//GameServerUDP server = new GameServerUDP(serverPort);
+			server = new GameServerUDP(serverPort);
 			server.getLocalInetAddress();
 			System.out.println("The server connection info is " + server.getLocalInetAddress() + ":" + serverPort);
 			System.out.println("waiting for client connection...");
 
 			String[] msgTokens = server.getLocalInetAddress().toString().split("/");
 			System.out.println(msgTokens[1]);
-			MyGame game = new MyGame(msgTokens[1], serverPort);
+			game = new MyGame(msgTokens[1], serverPort);
 	        try {
 	            game.startup();
 	            game.run();
@@ -541,7 +550,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			System.out.println("Enter host server's IP address:");
 			String serverIP = r.nextLine();
 			System.out.println("Joining server " + serverIP + ":" + serverPort);
-			MyGame game = new MyGame(serverIP, serverPort);
+			game = new MyGame(serverIP, serverPort);
 	        try {
 	            game.startup();
 	            game.run();
@@ -653,7 +662,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		else
 		{ // ask client protocol to send initial join message
 			//to server, with a unique identifier for this client
-			gameClient.sendJoinMessage();
+			gameClient.sendJoinMessages();
 		} 
 	}
 	
@@ -703,7 +712,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		@Override
 		public void performAction(float time, Event evt) { 
 			if(gameClient != null && isClientConnected == true) { 
-				gameClient.sendByeMessage();
+				gameClient.sendByeMessages();
 			} 
 		}
 	}
