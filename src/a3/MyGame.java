@@ -65,7 +65,7 @@ import ray.rml.Vector3f;
 import myGameEngine.dolphinMovement.*;
 import myGameEngine.nodeControllers.*;
 import net.java.games.input.Event;
-import myGameEngine.avatarMovement.MoveForwardAction;
+import myGameEngine.avatarMovement.*;
 import myGameEngine.camera3PMovement.*;
 
 import ray.rage.rendersystem.states.*;
@@ -81,7 +81,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 					yawCameraLeft, yawCameraRight, pitchCameraUp, pitchCameraDown, gamePadYaw, 
 					gamePadPitch, gamePadBackForward, gamePadRightLeft;//offOnDolphin, //Action Camera Classes Declarations
 	private Camera camera;
-	private Action moveForwardAction;
+	private Action moveForwardAction, moveLeftAction, moveRightAction,moveBackwardAction;
+	 ;
 	
 	
 	//Declare Scene node variables
@@ -263,12 +264,15 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	protected void setupInputs() {
 		//New input manager
 		im = new GenericInputManager();
-		cameraForward = new CameraForward(camera, dolphinNode);
 		
 		//
 		moveForwardAction = new MoveForwardAction(dolphinNode, gameClient);
+		moveBackwardAction = new MoveBackAction(dolphinNode, gameClient);
+		moveLeftAction = new MoveLeftAction(dolphinNode, gameClient);
+		moveRightAction = new MoveRightAction(dolphinNode, gameClient);
+		
 		//Instantiate Action classes 
-		cameraForward = new CameraForward(camera, dolphinNode);
+		/*cameraForward = new CameraForward(camera, dolphinNode);
 		cameraBackward = new CameraBackward(camera, dolphinNode);
 		cameraRight = new CameraRight(camera, dolphinNode);
 		cameraLeft = new CameraLeft(camera, dolphinNode);
@@ -281,7 +285,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		gamePadBackForward = new GamePadBackForward(camera, dolphinNode);
 		gamePadRightLeft = new GamePadRightLeft(camera, dolphinNode);
 		gamePadPitch = new GamePadPitch(camera, dolphinNode);
-		gamePadYaw = new GamePadYaw(camera, dolphinNode);
+		gamePadYaw = new GamePadYaw(camera, dolphinNode);*/
 		
 		//attach action objects to gamepad
 		/*if(im.getFirstGamepadName() != null) {
@@ -312,6 +316,15 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.W,
     				moveForwardAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		im.associateAction(kbName, 
+    				net.java.games.input.Component.Identifier.Key.S,
+    				moveBackwardAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		im.associateAction(kbName, 
+    				net.java.games.input.Component.Identifier.Key.D,
+    				moveLeftAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		im.associateAction(kbName, 
+    				net.java.games.input.Component.Identifier.Key.A,
+    				moveRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		//s; move backward
     		/*im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.S, 
