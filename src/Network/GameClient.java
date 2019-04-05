@@ -70,6 +70,7 @@ public class GameClient extends GameConnectionClient {
 						Float.parseFloat(msgTokens[2]),
 						Float.parseFloat(msgTokens[3]),
 						Float.parseFloat(msgTokens[4]));
+				if (ghostAvatar == null)
 						createGhostAvatar(ghostID, ghostPosition); 
 			}	
 			
@@ -88,12 +89,17 @@ public class GameClient extends GameConnectionClient {
 						Float.parseFloat(msgTokens[3]),
 						Float.parseFloat(msgTokens[4]));
 				//then:
-				int rotateDegrees = Integer.parseInt(msgTokens[5]);
-				//moveGhostAvatar(ghostID, ghostPosition, rotateDegrees);
+				//int rotateDegrees = Integer.parseInt(msgTokens[5]);
+				moveGhostAvatar(ghostID, ghostPosition);
 			}
 		}
 	}
 	
+	private void moveGhostAvatar(UUID ghostID, Vector3 ghostPosition) {
+		// TODO Auto-generated method stub
+		
+	}
+
 	public void sendJoinMessage() { // format: join, localId
 		try { 
 			sendPacket(new String("join," + id.toString()));

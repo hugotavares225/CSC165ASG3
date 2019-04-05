@@ -513,7 +513,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		//If you are host use your own ip address
 		if(response.charAt(0) == 'y')
 		{
-			System.out.println("You are about to host a new game");
+			System.out.println("You are the host");
 			GameServerUDP server = new GameServerUDP(serverPort);
 			server.getLocalInetAddress();
 			System.out.println("The server connection info is " + server.getLocalInetAddress() + ":" + serverPort);
@@ -676,7 +676,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	public void addGhostAvatarToGameWorld(GhostAvatar avatar)
 			throws IOException {
 		if (avatar != null) { 
-			Entity ghostE = sm.createEntity("ghost", "dolphinHighPoly.obj");
+			Entity ghostE = sm.createEntity("ghosts", "dolphinHighPoly.obj");
 			ghostE.setPrimitive(Primitive.TRIANGLES);
 			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(avatar.getID().toString());
 			ghostN.attachObject(ghostE);
