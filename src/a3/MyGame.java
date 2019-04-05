@@ -81,7 +81,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 					yawCameraLeft, yawCameraRight, pitchCameraUp, pitchCameraDown, gamePadYaw, 
 					gamePadPitch, gamePadBackForward, gamePadRightLeft;//offOnDolphin, //Action Camera Classes Declarations
 	private Camera camera;
-	private Action moveForwardAction, moveLeftAction, moveRightAction,moveBackwardAction;
+	private Action moveForwardAction, moveLeftAction, moveRightAction,
+		moveBackwardAction, yawLeftAction, yawRightAction, pitchUpAction, pitchDownAction;
 	 ;
 	
 	
@@ -273,6 +274,11 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		moveBackwardAction = new MoveBackAction(dolphinNode, gameClient);
 		moveLeftAction = new MoveLeftAction(dolphinNode, gameClient);
 		moveRightAction = new MoveRightAction(dolphinNode, gameClient);
+		yawLeftAction = new YawLeftAction(dolphinNode, gameClient);
+		yawRightAction = new YawRightAction(dolphinNode, gameClient);
+		pitchUpAction = new PitchUpAction(dolphinNode, gameClient);
+		pitchDownAction = new PitchDownAction(dolphinNode, gameClient);
+		
 		
 		//Instantiate Action classes 
 		/*cameraForward = new CameraForward(camera, dolphinNode);
@@ -319,15 +325,43 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.W,
     				moveForwardAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		
+    		//mode back
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.S,
     				moveBackwardAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		
+    		//move right
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.D,
     				moveLeftAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		
+    		//move left
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.A,
     				moveRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		
+    		//yaw left
+    		im.associateAction(kbName, 
+    				net.java.games.input.Component.Identifier.Key.Q,
+    				yawLeftAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		
+    		//yaw left
+    		im.associateAction(kbName, 
+    				net.java.games.input.Component.Identifier.Key.E,
+    				yawRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		
+    		//pitch up
+    		im.associateAction(kbName, 
+    				net.java.games.input.Component.Identifier.Key.G,
+    				pitchUpAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		
+    		//pitch downn
+    		im.associateAction(kbName, 
+    				net.java.games.input.Component.Identifier.Key.H,
+    				pitchDownAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		
+    		//Close client
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.C,
     				close, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
