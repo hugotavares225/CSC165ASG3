@@ -123,6 +123,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	private Vector<UUID> gameObjectsToRemove;	
 	private GameClient gameClient;
 	private static GameServerUDP server;
+	static MyGame game;
 
 	//skybox variables
 	private static final String SKYBOX_NAME = "SkyBox";
@@ -265,6 +266,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		//New input manager
 		im = new GenericInputManager();
 		
+		SendCloseConnectionPacketAction close = new SendCloseConnectionPacketAction();
+		
 		//
 		moveForwardAction = new MoveForwardAction(dolphinNode, gameClient);
 		moveBackwardAction = new MoveBackAction(dolphinNode, gameClient);
@@ -325,6 +328,9 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.A,
     				moveRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		im.associateAction(kbName, 
+    				net.java.games.input.Component.Identifier.Key.C,
+    				close, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		//s; move backward
     		/*im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.S, 
@@ -530,7 +536,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		System.out.println("Are you the host? (Enter y/n)");
 		String response = r.nextLine();
 		int serverPort = 6000;
-		MyGame game; 
+ 
 
 		
 		//If you are host use your own ip address
@@ -708,6 +714,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			ghostN.setLocalPosition(pos);
 			avatar.setNode(ghostN);
 			avatar.setEntity(ghostE);
+			ghostN.yaw(Degreef.createFrom(45.0f));	
 			//avatar.setPosition(node’s position... maybe redundant);
 		} 	
 	}
@@ -726,6 +733,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		public void performAction(float time, Event evt) { 
 			if(gameClient != null && isClientConnected == true) { 
 				gameClient.sendByeMessages();
+				game.shutdown();
+				game.exit();
 			} 
 		}
 	}
