@@ -18,7 +18,8 @@ public class GameClient extends GameConnectionClient {
 	
 	private MyGame game;
 	private UUID id;
-	private Vector<GhostAvatar> ghostAvatars; 
+	private GhostAvatar ghostAvatar;
+	//private Vector<GhostAvatar> ghostAvatars; 
 	
 	public GameClient(InetAddress remAddr, int remPort, 
 			ProtocolType pType, MyGame ngame) throws IOException {
@@ -28,7 +29,7 @@ public class GameClient extends GameConnectionClient {
 		
 		System.out.println(id.toString());
 		
-		ghostAvatars = new Vector<GhostAvatar>();	
+		//ghostAvatars = new Vector<GhostAvatar>();	
 	}
 	
 	/*
@@ -69,11 +70,11 @@ public class GameClient extends GameConnectionClient {
 						Float.parseFloat(msgTokens[2]),
 						Float.parseFloat(msgTokens[3]),
 						Float.parseFloat(msgTokens[4]));
-						createGhostAvatar(ghostID, ghostPosition); 				
+						createGhostAvatar(ghostID, ghostPosition); 
 			}	
 			
 			if(msgTokens[0].compareTo("wsds") == 0) { // rec. “create…”
-				Vector3d pos = game.getPlayerPosition();
+				Vector3 pos = game.getPlayerPosition();
 				UUID remID = UUID.fromString(msgTokens[1]);
 				sendDetailsForMessage(remID, pos);
 			}
@@ -82,7 +83,10 @@ public class GameClient extends GameConnectionClient {
 				//format: move, remoteID, x,y,z
 				UUID ghostID = UUID.fromString(msgTokens[1]);
 				//extract ghost new x,y,z position from message
-				Vector3d ghostPosition = new Vector3d(Double.parseDouble(msgTokens[2]),Double.parseDouble(msgTokens[3]),Double.parseDouble(msgTokens[4]));
+				Vector3 ghostPosition = Vector3f.createFrom(
+						Float.parseFloat(msgTokens[2]),
+						Float.parseFloat(msgTokens[3]),
+						Float.parseFloat(msgTokens[4]));
 				//then:
 				int rotateDegrees = Integer.parseInt(msgTokens[5]);
 				//moveGhostAvatar(ghostID, ghostPosition, rotateDegrees);
@@ -99,16 +103,17 @@ public class GameClient extends GameConnectionClient {
 		}
 	} 
 	
-	public void sendCreateMessage(Vector3d pos) { // format: (create, localId, x,y,z)
+	public void sendCreateMessage(Vector3 pos) { // format: (create, localId, x,y,z)
 		try { 
 			String message = new String("create," + id.toString());
-			message += "," + pos.getX()+"," + pos.getY() + "," + pos.getZ();
+			message += "," + pos.x()+"," + pos.y() + "," + pos.z();
 			sendPacket(message);
 		}
 		catch (IOException e) { 
 			e.printStackTrace(); 
 			} 
 	}
+	
 	public void sendByeMessage() {
 		try{
 			sendPacket(new String("bye," + id.toString()));
@@ -118,12 +123,12 @@ public class GameClient extends GameConnectionClient {
 			e.printStackTrace(); }
 	}
 	
-	public void sendDetailsForMessage(UUID remId, Vector3d pos) {
+	public void sendDetailsForMessage(UUID remId, Vector3 pos) {
 		try{
 			String message = new String("dsfr," + id.toString() + "," + remId.toString());
-			message += "," + pos.getX();
-			message += "," + pos.getY();
-			message += "," + pos.getZ();
+			message += "," + pos.x();
+			message += "," + pos.y();
+			message += "," + pos.z();
 			sendPacket(message);
 		} 
 		catch(IOException e) { 
@@ -131,12 +136,12 @@ public class GameClient extends GameConnectionClient {
 		}	
 	}
 	
-	public void sendMoveMessage(Vector3d pos) {	
+	public void sendMoveMessage(Vector3 pos) {	
 		try { 
 			String message = new String("move,"); 
-			message += "," + pos.getX(); 
-			message += "," + pos.getY(); 
-			message += "," + pos.getZ();
+			message += "," + pos.x(); 
+			message += "," + pos.y(); 
+			message += "," + pos.z();
 			sendPacket(message); 
 		} 
 		catch (IOException e) { 
@@ -145,10 +150,16 @@ public class GameClient extends GameConnectionClient {
 	}
 	
 	public void createGhostAvatar(UUID id, Vector3 pos) {
-				
+			ghostAvatar = new GhostAvatar(id, pos);
+			try {
+				game.addGhostAvatarToGameWorld(ghostAvatar);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}	
 	}
 	
 	public void removeGhostAvatar(UUID id) {
-		
+			game.removeGhostAvatarFromGameWorld(ghostAvatar);
 	}
 }

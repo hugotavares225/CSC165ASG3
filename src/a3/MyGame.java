@@ -10,10 +10,16 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.rmi.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Scanner;
+import java.util.UUID;
+import java.util.Vector;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
@@ -22,14 +28,16 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.vecmath.Vector3d;
 
+import Network.*;
 import ray.input.GenericInputManager;
 import ray.input.InputManager;
 import ray.input.action.AbstractInputAction;
 import ray.input.action.Action;
+import ray.networking.IGameConnection.ProtocolType;
 import ray.rage.Engine;
 import ray.rage.asset.material.Material;
 import ray.rage.asset.texture.Texture;
-import ray.rage.game.Game;
+
 import ray.rage.game.VariableFrameRateGame;
 import ray.rage.rendersystem.RenderSystem;
 import ray.rage.rendersystem.RenderWindow;
@@ -38,7 +46,7 @@ import ray.rage.rendersystem.Renderable.Primitive;
 import ray.rage.rendersystem.Viewport;
 import ray.rage.rendersystem.gl4.GL4RenderSystem;
 import ray.rage.rendersystem.shader.GpuShaderProgram;
-import ray.rage.rendersystem.states.FrontFaceState;
+
 import ray.rage.rendersystem.states.RenderState;
 import ray.rage.rendersystem.states.TextureState;
 import ray.rage.scene.Camera;
@@ -50,7 +58,6 @@ import ray.rage.scene.ManualObjectSection;
 import ray.rage.scene.SceneManager;
 import ray.rage.scene.SceneNode;
 import ray.rage.scene.SkyBox;
-import ray.rage.scene.controllers.RotationController;
 import ray.rage.util.BufferUtil;
 import ray.rml.Degreef;
 import ray.rml.Vector3;
@@ -104,16 +111,24 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	
 	//----3RD ASG----
 	protected ScriptEngine jsEngine;
-	protected ColorAction colorAction;
 	protected File scriptFile3, scriptFile1;
-	private boolean connected = false;
 	
+	private String serverAddress;
+	private int serverPort;
+	private ProtocolType serverProtocol;
+	private boolean isClientConnected = false;
+	private Vector<UUID> gameObjectsToRemove;	
+	private GameClient gameClient;
+
 	//skybox variables
 	private static final String SKYBOX_NAME = "SkyBox";
-	private boolean skyBoxVisible = true;
-	
-    public MyGame() {
-        super();
+
+    public MyGame(String serverAddr, int sPort) {
+    	super();
+    	serverAddress = serverAddr;
+    	serverPort = sPort;
+    	serverProtocol = ProtocolType.UDP;
+    	setupNetworking();
     }
     
 	@Override
@@ -160,7 +175,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         makeEntities(eng);
         
 		//**LIGHT**
-        //AMBIENT LIGHT SETUP THROGUH SCRIPT
+        //LIGHT SETUP THROGUH SCRIPT
         File scriptFile2 = new File("scripts/CreateLight.js");
         jsEngine.put("sm", sm);
         this.runScript(scriptFile2);
@@ -168,15 +183,6 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         plightNode.attachObject((Light)jsEngine.get("plight"));
         sm.getAmbientLight().setIntensity(new Color(.1f, .1f, .1f));
         
-        //POSITIIONAL LIGHT SETUP
-		/*Light plight = sm.createLight("testLamp1", Light.Type.POINT);
-		plight.setAmbient(new Color(.3f, .3f, .3f));
-        plight.setDiffuse(new Color(.7f, .7f, .7f));
-		plight.setSpecular(new Color(1.0f, 1.0f, 1.0f));
-        plight.setRange(100f);	
-        //plight.
-		SceneNode plightNode = sm.getRootSceneNode().createChildSceneNode("plightNode");
-        plightNode.attachObject(plight);*/	
         //Call setup inputs function
 		setupInputs();
 		
@@ -218,6 +224,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		im.update(elapsTime);
 		orbitController1.updateCameraPosition();
 		orbitController2.updateCameraPosition();
+		processNetworking(elapsTime);
+		//gc.processPackets();
 
 	}
 	
@@ -495,60 +503,59 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	
 	
 	//Start Game
-	public static void main(String[] args) {
-        MyGame game = new MyGame();
-        /*ScriptEngineManager factory = new ScriptEngineManager();
-        String scriptFileName = "scripts/scriptTest.js";
-        
-        //list of script engines
-        List<ScriptEngineFactory> list = factory.getEngineFactories();
-        
-        System.out.println("Script Engine Factories found:");
-        for (ScriptEngineFactory f:list) {
-        	System.out.println(" Name =" + f.getEngineName() +
-        					   " language=" + f.getLanguageName() +
-        					   " extensions = " + f.getExtensions());  						
-        }
-        
-        //get the JavaScript enginge
-        ScriptEngine jsEngine = factory.getEngineByName("js");
-        
-        //run the script
-        game.executeScript(jsEngine, scriptFileName);*/
-        
-        try {
-            game.startup();
-            game.run();
-        } catch (Exception e) {
-            e.printStackTrace(System.err);
-        } finally {
-            game.shutdown();
-            game.exit();
-        }
+	public static void main(String[] args) throws IOException {
+
+        Scanner r = new Scanner(System.in);
+		System.out.println("Are you the host? (Enter y/n)");
+		String response = r.nextLine();
+		int serverPort = 8065;
+		
+		//If you are host use your own ip address
+		if(response.charAt(0) == 'y')
+		{
+			System.out.println("You are about to host a new game");
+			GameServerUDP server = new GameServerUDP(serverPort);
+			server.getLocalInetAddress();
+			System.out.println("The server connection info is " + server.getLocalInetAddress() + ":" + serverPort);
+			System.out.println("waiting for client connection...");
+
+			String[] msgTokens = server.getLocalInetAddress().toString().split("/");
+			System.out.println(msgTokens[1]);
+			MyGame game = new MyGame(msgTokens[1], serverPort);
+	        try {
+	            game.startup();
+	            game.run();
+	        } catch (Exception e) {
+	            e.printStackTrace(System.err);
+	        } finally {
+	            game.shutdown();
+	            game.exit();
+	        }
+		}
+		
+		//If you are joining enter in ip address
+		else
+		{
+			System.out.println("Enter host server's IP address:");
+			String serverIP = r.nextLine();
+			System.out.println("Joining server " + serverIP + ":" + serverPort);
+			MyGame game = new MyGame(serverIP, serverPort);
+	        try {
+	            game.startup();
+	            game.run();
+	        } catch (Exception e) {
+	            e.printStackTrace(System.err);
+	        } finally {
+	            game.shutdown();
+	            game.exit();
+	        }
+		}	    
 	}
 	
-	//Execute Scripts function
-	/*private void executeScript(ScriptEngine engine, String scriptFileName) {
-		try {
-			FileReader fileReader = new FileReader(scriptFileName);
-			engine.eval(fileReader);
-			fileReader.close();
-		}
-		catch (FileNotFoundException e1) {
-			System.out.println(scriptFileName + " not found" + e1);
-		}
-		catch (IOException e2) {
-			System.out.println("IO problem with " + scriptFileName + e2);			
-		}
-		catch (ScriptException e3) {
-			System.out.println("ScriptException in " + scriptFileName + e3);
-		}
-		catch (NullPointerException e4) {
-			System.out.println("Null ptr exception in " + scriptFileName + e4);
-		}
-	}*/
 	
-	//Script Runner
+	/*---------------
+	 * Script Runner
+	 ---------------*/
 	private void runScript(File scriptFile1) { 
 		try { 
 			FileReader fileReader = new FileReader(scriptFile1);
@@ -569,26 +576,6 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			System.out.println ("Null ptr exception reading " + scriptFile1 + e4); }
 	}
 	
-	// an Action for invoking a script function
-	private class ColorAction extends AbstractInputAction { 
-		private SceneManager sm;
-		private ColorAction(SceneManager s) { sm = s; } // constructor
-		@Override
-		public void performAction(float time, Event e) { //cast the engine so it supports invoking functions
-			Invocable invocableEngine = (Invocable) jsEngine ;
-			//get the light to be updated
-			Light lgt = sm.getLight("testLamp1");
-			// invoke the script function
-			try { 
-				invocableEngine.invokeFunction("updateAmbientColor", lgt); }
-				catch (ScriptException e1) { 
-					System.out.println("ScriptException in " + scriptFile3 + e1); }
-				catch (NoSuchMethodException e2) { 
-					System.out.println("No such method in " + scriptFile3 + e2); }
-				catch (NullPointerException e3) { 
-					System.out.println ("Null ptr exception reading " + scriptFile3 + e3); }
-		}
-	}
 	
 	/*-----------------
 	 * Set SkyBox
@@ -627,12 +614,94 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		sm.setActiveSkyBox(sb);
 	}
 	
-	public void setIsConnected(boolean flag) {
-		connected = flag;
+	/*-------------------
+	 * Process Networking
+	 --------------------*/
+	protected void processNetworking(float elapsTime) { // Process packets received by the client from the server
+		if (gameClient != null) {
+			gameClient.processPackets();
+		}
+		// remove ghost avatars for players who have left the game
+		Iterator<UUID> it = gameObjectsToRemove.iterator();
+		
+		while(it.hasNext()) { 
+			sm.destroySceneNode(it.next().toString());
+		}
+		gameObjectsToRemove.clear(); 
 	}
 	
-	public Vector3d getPlayerPosition() {
-		return null;
-		//return player.model.getLocalTranslation().getCol(3);
+	/*------------------
+	 * Setup Networking
+	 -----------------*/
+	private void setupNetworking() { 
+		gameObjectsToRemove = new Vector<UUID>();
+		isClientConnected = false;
+		try { 
+			gameClient = new GameClient(InetAddress.getByName(serverAddress), serverPort, serverProtocol, this);
+		} 
+		catch (UnknownHostException e) { 
+			e.printStackTrace();
+		} 
+		catch (IOException e) { 
+			e.printStackTrace();
+		}
+		
+		if (gameClient == null) { 
+			System.out.println("missing protocol host"); }
+		else
+		{ // ask client protocol to send initial join message
+			//to server, with a unique identifier for this client
+			gameClient.sendJoinMessage();
+		} 
+	}
+	
+	/*----------------------
+	 * Set Is Connected Flag
+	 ---------------------*/
+	public void setIsConnected(boolean flag) {
+		isClientConnected = flag;
+	}
+	
+	/*---------------------
+	 * Gets Player Position
+	 ---------------------*/
+	public Vector3 getPlayerPosition() {
+		SceneNode dolphinN = sm.getSceneNode("myDolphinNode");
+		return dolphinN.getWorldPosition();
+	}
+	
+	/*-----------------------
+	 * Add a new ghost avatar
+	 ----------------------*/
+	public void addGhostAvatarToGameWorld(GhostAvatar avatar)
+			throws IOException {
+		if (avatar != null) { 
+			Entity ghostE = sm.createEntity("ghost", "dolphinHighPoly.obj");
+			ghostE.setPrimitive(Primitive.TRIANGLES);
+			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(avatar.getID().toString());
+			ghostN.attachObject(ghostE);
+			ghostN.setLocalPosition(1.0f, 1.0f, 1.0f);
+			avatar.setNode(ghostN);
+			avatar.setEntity(ghostE);
+			//avatar.setPosition(node’s position... maybe redundant);
+		} 	
+	}
+	
+	/*--------------------
+	 * Remove ghost avatar
+	 --------------------*/
+	public void removeGhostAvatarFromGameWorld(GhostAvatar avatar) { 
+		if(avatar != null) {
+			gameObjectsToRemove.add(avatar.getID());
+		}
+	}
+	
+	private class SendCloseConnectionPacketAction extends AbstractInputAction { // for leaving the game... need to attach to an input device
+		@Override
+		public void performAction(float time, Event evt) { 
+			if(gameClient != null && isClientConnected == true) { 
+				gameClient.sendByeMessage();
+			} 
+		}
 	}
 }
