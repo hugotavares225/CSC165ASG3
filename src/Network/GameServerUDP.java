@@ -53,7 +53,7 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			}
 			
 			// case where server receives a DETAILS-FOR message
-			if(msgTokens[0].compareTo("dsfr") == 0) { 
+			if(msgTokens[0].compareTo("wsds") == 0) { 
 				//format: dsfr, localID, remoteID, x,y,z, remoteAvatar
 				UUID clientID = UUID.fromString(msgTokens[1]);
 				UUID remoteID = UUID.fromString(msgTokens[2]);
@@ -94,33 +94,35 @@ public class GameServerUDP extends GameConnectionServer<UUID> {
 			message += "," + position[0];
 			message += "," + position[1];
 			message += "," + position[2];
-			sendPacket(message, clientID);
+			forwardPacketToAll(message, clientID);
 		}
 		catch (IOException e) { 
 			e.printStackTrace();
 		} 
 	}
 	
-	public void sendDetailsMsg(UUID clientID, UUID remoteId, String[] position) {
-		//format: dsfr, clientID, x,y,z, remoteAvatar
-		try{
+
+	
+	public void sendWantsDetailsMessages(UUID clientID) {
+		//format: wsds, clientID
+		try {
 			String message = new String("dsfr," + clientID.toString());
-			message += "," + position[0];
-			message += "," + position[1];
-			message += "," + position[2];
-			//message += "," + remoteAvatar;
-			sendPacket(message, remoteId);
+			forwardPacketToAll(message, clientID);			
 		} 
 		catch(IOException e) { 
 			e.printStackTrace(); 
 		}		
 	}
 	
-	public void sendWantsDetailsMessages(UUID clientID) {
-		//format: wsds, clientID
-		try {
-			String message = new String("wsds," + clientID.toString());
-			sendPacket(message, clientID);			
+	public void sendDetailsMsg(UUID clientID, UUID remoteId, String[] position) {
+		//format: dsfr, clientID, x,y,z, remoteAvatar
+		try{
+			String message = new String("smd," + clientID.toString());
+			message += "," + position[0];
+			message += "," + position[1];
+			message += "," + position[2];
+			//message += "," + remoteAvatar;
+			sendPacket(message, remoteId);
 		} 
 		catch(IOException e) { 
 			e.printStackTrace(); 

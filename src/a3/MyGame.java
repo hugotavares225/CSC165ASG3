@@ -128,7 +128,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     	serverAddress = serverAddr;
     	serverPort = sPort;
     	serverProtocol = ProtocolType.UDP;
-    	setupNetworking();
+
     }
     
 	@Override
@@ -162,6 +162,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	
 	@Override
 	protected void setupScene(Engine eng, SceneManager sm) throws IOException {
+		sm = eng.getSceneManager();
+    	setupNetworking();
 		
         //Setup the Script Engine
 		ScriptEngineManager factory = new ScriptEngineManager();
@@ -673,14 +675,15 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	/*-----------------------
 	 * Add a new ghost avatar
 	 ----------------------*/
-	public void addGhostAvatarToGameWorld(GhostAvatar avatar)
+	public void addGhostAvatarToGameWorld(GhostAvatar avatar, Vector3 pos)
 			throws IOException {
 		if (avatar != null) { 
+			sm = this.getEngine().getSceneManager();
 			Entity ghostE = sm.createEntity("ghosts", "dolphinHighPoly.obj");
 			ghostE.setPrimitive(Primitive.TRIANGLES);
 			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(avatar.getID().toString());
 			ghostN.attachObject(ghostE);
-			ghostN.setLocalPosition(1.0f, 1.0f, 1.0f);
+			ghostN.setLocalPosition(pos);
 			avatar.setNode(ghostN);
 			avatar.setEntity(ghostE);
 			//avatar.setPosition(node’s position... maybe redundant);

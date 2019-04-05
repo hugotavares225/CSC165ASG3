@@ -3,6 +3,7 @@ package Network;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.Vector;
@@ -18,18 +19,15 @@ public class GameClient extends GameConnectionClient {
 	
 	private MyGame game;
 	private UUID id;
-	private GhostAvatar ghostAvatar;
-	//private Vector<GhostAvatar> ghostAvatars; 
+	//private GhostAvatar ghostAvatar;
+	private Vector<GhostAvatar> ghostAvatars; 
 	
 	public GameClient(InetAddress remAddr, int remPort, 
 			ProtocolType pType, MyGame ngame) throws IOException {
 		super(remAddr, remPort, pType);
 		game = ngame;
 		id = UUID.randomUUID();
-		
-		System.out.println(id.toString());
-		
-		//ghostAvatars = new Vector<GhostAvatar>();	
+		ghostAvatars = new Vector<GhostAvatar>();	
 	}
 	
 	/*
@@ -63,21 +61,29 @@ public class GameClient extends GameConnectionClient {
 				removeGhostAvatar(ghostID);
 			}
 			
-			if ((msgTokens[0].compareTo("dsfr") == 0 ) // receive “dsfr”
-				|| (msgTokens[0].compareTo("create")==0)) { // format: create, remoteId, x,y,z or dsfr, remoteId, x,y,z
+			if ( msgTokens[0].compareTo("create")==0) { // format: create, remoteId, x,y,z or dsfr, remoteId, x,y,z
 				UUID ghostID = UUID.fromString(msgTokens[1]);
 				Vector3 ghostPosition = Vector3f.createFrom(
 						Float.parseFloat(msgTokens[2]),
 						Float.parseFloat(msgTokens[3]),
 						Float.parseFloat(msgTokens[4]));
-				if (ghostAvatar == null)
-						createGhostAvatar(ghostID, ghostPosition); 
+				createGhostAvatar(ghostID, ghostPosition); 
 			}	
 			
-			if(msgTokens[0].compareTo("wsds") == 0) { // rec. “create…”
+			/*if(msgTokens[0].compareTo("wsds") == 0) { // rec. “create…”
 				Vector3 pos = game.getPlayerPosition();
 				UUID remID = UUID.fromString(msgTokens[1]);
 				sendDetailsForMessage(remID, pos);
+			}*/
+			
+			// format: create, remoteId, x,y,z 
+			if (msgTokens[0].compareTo("sdm") == 0)  { // receive "details-message"
+				UUID ghostID = UUID.fromString(msgTokens[1]);
+				Vector3 ghostPosition = Vector3f.createFrom(
+						Float.parseFloat(msgTokens[2]), 
+						Float.parseFloat(msgTokens[3]), 
+						Float.parseFloat(msgTokens[4]));
+				createGhostAvatar(ghostID, ghostPosition);
 			}
 
 			if(msgTokens[0].compareTo("move") == 0) { // rec. “move...”
@@ -92,13 +98,15 @@ public class GameClient extends GameConnectionClient {
 				//int rotateDegrees = Integer.parseInt(msgTokens[5]);
 				moveGhostAvatar(ghostID, ghostPosition);
 			}
+			
+			if (msgTokens[0].compareTo("dsfr") == 0)	// receive "wants-details"
+			{ // format: wantRequest,requestorId
+				UUID ghostID = UUID.fromString(msgTokens[1]);
+				sendDetailsForMessage(ghostID, game.getPlayerPosition());
+			}
 		}
 	}
 	
-	private void moveGhostAvatar(UUID ghostID, Vector3 ghostPosition) {
-		// TODO Auto-generated method stub
-		
-	}
 
 	public void sendJoinMessage() { // format: join, localId
 		try { 
@@ -131,7 +139,7 @@ public class GameClient extends GameConnectionClient {
 	
 	public void sendDetailsForMessage(UUID remId, Vector3 pos) {
 		try{
-			String message = new String("dsfr," + id.toString() + "," + remId.toString());
+			String message = new String("wsds," + id.toString() + "," + remId.toString());
 			message += "," + pos.x();
 			message += "," + pos.y();
 			message += "," + pos.z();
@@ -156,16 +164,45 @@ public class GameClient extends GameConnectionClient {
 	}
 	
 	public void createGhostAvatar(UUID id, Vector3 pos) {
-			ghostAvatar = new GhostAvatar(id, pos);
-			try {
-				game.addGhostAvatarToGameWorld(ghostAvatar);
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}	
+		try {
+			GhostAvatar gAvatar = new GhostAvatar(id, pos);
+			ghostAvatars.add(gAvatar);
+			game.addGhostAvatarToGameWorld(gAvatar, pos);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}	
 	}
 	
-	public void removeGhostAvatar(UUID id) {
+	/*public void removeGhostAvatar(UUID id) {
 			game.removeGhostAvatarFromGameWorld(ghostAvatar);
+	}*/
+	
+	private void moveGhostAvatar(UUID ghostID, Vector3 pos) {
+		try {
+			Iterator<GhostAvatar> itr = ghostAvatars.iterator();
+			while(itr.hasNext()) {
+				GhostAvatar gAvatar = itr.next();
+				if(gAvatar.getID().equals(ghostID)) {
+					gAvatar.setPosition(pos);
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	private void removeGhostAvatar(UUID ghostID) {
+		try {
+			Iterator<GhostAvatar> itr = ghostAvatars.iterator();
+			while(itr.hasNext()) {
+				GhostAvatar gAvatar = itr.next();
+				if(gAvatar.getID().equals(ghostID)) {
+					game.removeGhostAvatarFromGameWorld(gAvatar);
+					ghostAvatars.remove(gAvatar);
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 }
