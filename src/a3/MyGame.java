@@ -128,6 +128,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 
 	//skybox variables
 	private static final String SKYBOX_NAME = "SkyBox";
+	static int numOfAvatars = 0;
+	
 
     public MyGame(String serverAddr, int sPort) {
     	super();
@@ -580,7 +582,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			//GameServerUDP server = new GameServerUDP(serverPort);
 			server = new GameServerUDP(serverPort);
 			server.getLocalInetAddress();
-			System.out.println("The server connection info is " + server.getLocalInetAddress() + ":" + serverPort);
+			//System.out.println("The server connection info is " + server.getLocalInetAddress() + ":" + serverPort);
 			System.out.println("waiting for client connection...");
 
 			String[] msgTokens = server.getLocalInetAddress().toString().split("/");
@@ -740,8 +742,9 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	public void addGhostAvatarToGameWorld(GhostAvatar avatar, Vector3 pos)
 			throws IOException {
 		if (avatar != null) { 
+			numOfAvatars += 1;
 			sm = this.getEngine().getSceneManager();
-			Entity ghostE = sm.createEntity("ghosts", "dolphinHighPoly.obj");
+			Entity ghostE = sm.createEntity("ghosts " + String.valueOf(numOfAvatars), "dolphinHighPoly.obj");
 			ghostE.setPrimitive(Primitive.TRIANGLES);
 			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(avatar.getID().toString());
 			ghostN.attachObject(ghostE);
