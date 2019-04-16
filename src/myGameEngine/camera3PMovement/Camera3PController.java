@@ -61,36 +61,36 @@ public class Camera3PController {
 		if (cn != null && cn == gpName) {
 			System.out.println("Gamepad Active");
 			/*----Left Orbit---*/
-			im.associateAction(cn, Component.Identifier.Axis.Z, 
-					orbitAroundAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+			//im.associateAction(cn, Component.Identifier.Axis.Z, 
+				//	orbitAroundAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
 			/*----Elevate up----*/
-			im.associateAction(cn, Component.Identifier.Button._5,
-					orbitElevUpAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+			//im.associateAction(cn, Component.Identifier.Button._5,
+				//	orbitElevUpAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
 			/*----Elevate down--*/
-			im.associateAction(cn, Component.Identifier.Button._4, 
-					orbitElevDownAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+			//im.associateAction(cn, Component.Identifier.Button._4, 
+				//	orbitElevDownAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
 			/*----Zoom In---*/
-			im.associateAction(cn, Component.Identifier.Button._3, //4 B
-				orbitRadInAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);		
+			//im.associateAction(cn, Component.Identifier.Button._3, //4 B
+				//orbitRadInAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);		
 			/*----Zoom Out*---*/
-			im.associateAction(cn, Component.Identifier.Button._0,
-				orbitRadOutAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);	
+			//im.associateAction(cn, Component.Identifier.Button._0,
+				//orbitRadOutAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
 		}
 		
 		/*KEYBOARD*/
 		if (cn != null && cn == kbName) {
 			System.out.println("Keyboard Active");
 			/*Left Orbit*/
-			im.associateAction(cn, Component.Identifier.Key.Q, 
-					orbitLeftAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+			im.associateAction(cn, Component.Identifier.Key.LEFT, 
+				orbitLeftAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
 			/*Right Orbit*/
-			im.associateAction(cn, Component.Identifier.Key.E, 
-					orbitRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+			im.associateAction(cn, Component.Identifier.Key.RIGHT, 
+				orbitRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
 			/*Elevate Up*/
-			im.associateAction(cn, Component.Identifier.Key.Z, 
-					orbitElevUpAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+			im.associateAction(cn, Component.Identifier.Key.UP, 
+				orbitElevUpAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
 			/*Elevate Down*/
-			im.associateAction(cn, Component.Identifier.Key.X,
+			im.associateAction(cn, Component.Identifier.Key.DOWN,
 					orbitElevDownAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
 			/*----Zoom In---*/
 			im.associateAction(cn, Component.Identifier.Key.M,

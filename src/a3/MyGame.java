@@ -58,6 +58,7 @@ import ray.rage.scene.ManualObjectSection;
 import ray.rage.scene.SceneManager;
 import ray.rage.scene.SceneNode;
 import ray.rage.scene.SkyBox;
+import ray.rage.scene.Tessellation;
 import ray.rage.util.BufferUtil;
 import ray.rml.Degreef;
 import ray.rml.Vector3;
@@ -89,6 +90,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	//Declare Scene node variables
 	private SceneNode cameraNode;
     private SceneNode dolphinNode;
+    private SceneNode plightNode;
 	private InputManager im; // Input Manager for action classes
 	private SceneManager sm;
 	
@@ -115,7 +117,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	
 	//----3RD ASG----
 	protected ScriptEngine jsEngine;
-	protected File scriptFile3, scriptFile1;
+	protected File scriptFile3, scriptFile1, scriptFile2;
 	
 	private String serverAddress;
 	private int serverPort;
@@ -186,18 +188,31 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         
 		//**LIGHT**
         //LIGHT SETUP THROGUH SCRIPT
-        File scriptFile2 = new File("scripts/CreateLight.js");
+        scriptFile2 = new File("scripts/CreateLight.js");
         jsEngine.put("sm", sm);
         this.runScript(scriptFile2);
-        SceneNode plightNode = sm.getRootSceneNode().createChildSceneNode("plightNode");
+        plightNode = sm.getRootSceneNode().createChildSceneNode("plightNode");
         plightNode.attachObject((Light)jsEngine.get("plight"));
         sm.getAmbientLight().setIntensity(new Color(.1f, .1f, .1f));
         
+        
         //Call setup inputs function
-		setupInputs();
-		
-		
+		setupInputs();	
 		setupOrbitCameras(eng, sm);
+		
+		// 2^patches: min=5, def=7, warnings start at 10
+		Tessellation tessE = sm.createTessellation("tessE", 6);
+		// subdivisions per patch: min=0, try up to 32
+		tessE.setSubdivisions(8f);
+		SceneNode tessN = sm.getRootSceneNode().createChildSceneNode("tessN");
+		tessN.attachObject(tessE);
+		// to move it, note that X and Z must BOTH be positive OR negative
+		// tessN.translate(Vector3f.createFrom(-6.2f, -2.2f, 2.7f));
+		tessN.yaw(Degreef.createFrom(37.2f));
+		tessN.scale(500, 30, 500);
+		tessE.setTexture(this.getEngine(), "brick_tex.png");
+		tessE.setHeightMap(this.getEngine(), "brick_height.png");
+		tessE.setNormalMap(this.getEngine(),"brick_normal.png");
 		setSkyBox(eng);
 	}
 
@@ -232,6 +247,13 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		
 		//process inputs
 		im.update(elapsTime);
+		// run script again in update() to demonstrate dynamic modification 
+		long modTime = scriptFile2.lastModified();
+		//if   (modTime > ) {   
+			//fileLastModifiedTime = modTime;
+			//this.runScript(scriptFile1);
+		//	sm.getAmbientLight().setIntensity(new Color(.1f, .1f, .1f));
+		//} 
 		orbitController1.updateCameraPosition();
 		orbitController2.updateCameraPosition();
 		processNetworking(elapsTime);
@@ -272,16 +294,15 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		SendCloseConnectionPacketAction close = new SendCloseConnectionPacketAction();
 		
 		//
-		moveForwardAction = new MoveForwardAction(dolphinNode, gameClient);
-		moveBackwardAction = new MoveBackAction(dolphinNode, gameClient);
-		moveLeftAction = new MoveLeftAction(dolphinNode, gameClient);
-		moveRightAction = new MoveRightAction(dolphinNode, gameClient);
-		yawLeftAction = new YawLeftAction(dolphinNode, gameClient);
-		yawRightAction = new YawRightAction(dolphinNode, gameClient);
-		pitchUpAction = new PitchUpAction(dolphinNode, gameClient);
-		pitchDownAction = new PitchDownAction(dolphinNode, gameClient);
-		
-		
+		moveForwardAction = new MoveForwardAction(dolphinNode, gameClient, this);
+		moveBackwardAction = new MoveBackAction(dolphinNode, gameClient, this);
+		moveLeftAction = new MoveLeftAction(dolphinNode, gameClient, this);
+		moveRightAction = new MoveRightAction(dolphinNode, gameClient, this);
+		yawLeftAction = new YawLeftAction(dolphinNode, gameClient, this);
+		yawRightAction = new YawRightAction(dolphinNode, gameClient, this);
+		pitchUpAction = new PitchUpAction(dolphinNode, gameClient, this);
+		pitchDownAction = new PitchDownAction(dolphinNode, gameClient, this);
+			
 		//Instantiate Action classes 
 		/*cameraForward = new CameraForward(camera, dolphinNode);
 		cameraBackward = new CameraBackward(camera, dolphinNode);
@@ -355,17 +376,17 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     		
     		//pitch up
     		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.G,
+    				net.java.games.input.Component.Identifier.Key.C,
     				pitchUpAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
     		//pitch downn
     		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.H,
+    				net.java.games.input.Component.Identifier.Key.V,
     				pitchDownAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
     		//Close client
     		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.C,
+    				net.java.games.input.Component.Identifier.Key.M,
     				close, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		//s; move backward
     		/*im.associateAction(kbName, 
@@ -430,8 +451,35 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         //create dolphin node
         dolphinNode = sm.getRootSceneNode().createChildSceneNode(dolphinE.getName() + "Node");
         dolphinNode.attachObject(dolphinE);
+        dolphinNode.scale(1.5f, 1.5f, 1.5f);
         dolphinNode.setLocalPosition(1.0f, 0.5f, -1.4f);       
 		dolphinNode.yaw(Degreef.createFrom(45.0f));		
+	}
+	
+	public void updateVerticalPosition() {
+		SceneNode dolphinN = this.getEngine().getSceneManager().getSceneNode("myDolphinNode");
+		SceneNode tessN = this.getEngine().getSceneManager().getSceneNode("tessN");
+		Tessellation tessE = ((Tessellation) tessN.getAttachedObject("tessE"));
+		
+		// Figure out Avatar's position relative to plane
+		Vector3 worldAvatarPosition = dolphinN.getWorldPosition();
+		Vector3 localAvatarPosition = dolphinN.getLocalPosition();
+		float terrHeight = tessE.getWorldHeight(worldAvatarPosition.x()+0.1f, worldAvatarPosition.z()+0.1f);
+		// use avatar World coordinates to get coordinates for height
+		/*Vector3 newAvatarPosition = Vector3f.createFrom(
+		localAvatarPosition.x(),// Keep the X coordinate
+		tessE.getWorldHeight(		// The Y coordinate is the varying height
+		worldAvatarPosition.x(),
+		worldAvatarPosition.z()),
+		localAvatarPosition.z());	*	//Keep the Z coordinate*/
+		
+		//Sets Avatar above terrain 
+		Vector3 newAvatarPosition = Vector3f.createFrom(
+				localAvatarPosition.x(),
+				terrHeight+0.5f,
+				localAvatarPosition.z());
+		dolphinN.setLocalPosition(newAvatarPosition);
+		
 	}
 	
 	/*-------------------------------*/
@@ -465,8 +513,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		xSec.setIndexBuffer(indexBufX);
 		
 		//Get material
-	    Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-	    mat.setEmissive(Color.RED);
+	    //Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
+	    //mat.setEmissive(Color.RED);
 	    
 	    //Get Texture
 	    Texture tex = eng.getTextureManager().getAssetByPath("bright-red.jpeg");
@@ -475,7 +523,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	    //Set texture
 	    tstate.setTexture(tex);
 	    x.setRenderState(tstate);
-	    x.setMaterial(mat);    
+	    //x.setMaterial(mat);    
 		x.setDataSource(DataSource.INDEX_BUFFER);
 		return x;		
 	}
@@ -507,8 +555,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		ySec.setIndexBuffer(indexBufY);
 		
 		//Get material
-	    Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-	    mat.setEmissive(Color.RED);
+	    //Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
+	    //mat.setEmissive(Color.RED);
 	    
 	    //Get Texture
 	    Texture tex = eng.getTextureManager().getAssetByPath("bright-green.jpeg");
@@ -517,7 +565,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	    //Set texture
 	    tstate.setTexture(tex);
 	    y.setRenderState(tstate);
-	    y.setMaterial(mat);    
+	    //y.setMaterial(mat);    
 		y.setDataSource(DataSource.INDEX_BUFFER);
 		return y;		
 	}
@@ -549,8 +597,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		zSec.setIndexBuffer(indexBufZ);
 		
 		//Get material
-	    Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-	    mat.setEmissive(Color.GREEN);
+	    //Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
+	    //mat.setEmissive(Color.GREEN);
 	    
 	    //Get Texture
 	    Texture tex = eng.getTextureManager().getAssetByPath("bright-blue.jpeg");
@@ -559,7 +607,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	    //Set texture
 	    tstate.setTexture(tex);
 	    z.setRenderState(tstate);
-	    z.setMaterial(mat);    
+	    //z.setMaterial(mat);    
 		z.setDataSource(DataSource.INDEX_BUFFER);
 		return z;		
 	}
