@@ -19,7 +19,7 @@ public class MoveBackAction extends AbstractInputAction {
 	}
 	
 	public void performAction(float time, Event e) { 
-		avN.moveBackward(0.1f);
+		avN.moveBackward(1.3f);
 		gameClient.sendMoveMessages(avN.getWorldPosition());
 		myGame.updateVerticalPosition();
 	}

@@ -203,16 +203,16 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		// 2^patches: min=5, def=7, warnings start at 10
 		Tessellation tessE = sm.createTessellation("tessE", 6);
 		// subdivisions per patch: min=0, try up to 32
-		tessE.setSubdivisions(8f);
+		tessE.setSubdivisions(32f);
 		SceneNode tessN = sm.getRootSceneNode().createChildSceneNode("tessN");
 		tessN.attachObject(tessE);
 		// to move it, note that X and Z must BOTH be positive OR negative
 		// tessN.translate(Vector3f.createFrom(-6.2f, -2.2f, 2.7f));
-		tessN.yaw(Degreef.createFrom(37.2f));
-		tessN.scale(500, 30, 500);
-		tessE.setTexture(this.getEngine(), "brick_tex.png");
-		tessE.setHeightMap(this.getEngine(), "brick_height.png");
-		tessE.setNormalMap(this.getEngine(),"brick_normal.png");
+		//tessN.yaw(Degreef.createFrom(37.2f));
+		tessN.scale(2000, 800, 2000);
+		tessE.setTexture(this.getEngine(), "TextureTerrain.png");
+		tessE.setHeightMap(this.getEngine(), "heightTerrain.png");
+		//tessE.setNormalMap(this.getEngine(),"brick_normal.png");
 		setSkyBox(eng);
 	}
 
@@ -230,6 +230,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	protected void update(Engine engine) {
 		String 	dispStr = "START";
 		int topBot = topViewport.getActualBottom();
+		System.out.println(dolphinNode.getLocalPosition());
 			
 		// build and set HUD
 		rs = (GL4RenderSystem) engine.getRenderSystem();
@@ -355,14 +356,14 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     				moveBackwardAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
     		//move right
-    		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.D,
-    				moveLeftAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		//im.associateAction(kbName, 
+    				//net.java.games.input.Component.Identifier.Key.D,
+    				//moveLeftAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
     		//move left
-    		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.A,
-    				moveRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		//im.associateAction(kbName, 
+    				//net.java.games.input.Component.Identifier.Key.A,
+    				//moveRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
     		//yaw left
     		im.associateAction(kbName, 
@@ -375,14 +376,14 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     				yawRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
     		//pitch up
-    		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.C,
-    				pitchUpAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		//im.associateAction(kbName, 
+    			//	net.java.games.input.Component.Identifier.Key.C,
+    				//pitchUpAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
     		//pitch downn
-    		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.V,
-    				pitchDownAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		//im.associateAction(kbName, 
+    				//net.java.games.input.Component.Identifier.Key.V,
+    				//pitchDownAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
     		//Close client
     		im.associateAction(kbName, 
@@ -446,14 +447,26 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		/**MODEL**/
 		//--------------First Dolphin-------------
         //Create dolphin entity
-        Entity dolphinE = sm.createEntity("myDolphin", "dolphinHighPoly.obj");
-        dolphinE.setPrimitive(Primitive.TRIANGLES);        
+		Material dolphinMat = sm.getMaterialManager().getAssetByPath("fullycar3.mtl");
+        Entity dolphinE = sm.createEntity("myDolphin", "fullycar3.obj");
+          //material
+
+        dolphinE.setPrimitive(Primitive.TRIANGLES);    
+		dolphinE.setMaterial(dolphinMat);
+		
+		  //texture
+	    Texture tex = eng.getTextureManager().getAssetByPath("fullycar3.png"); //Get Texture
+	    TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+	    tstate.setTexture(tex); //set texture for black hole
         //create dolphin node
         dolphinNode = sm.getRootSceneNode().createChildSceneNode(dolphinE.getName() + "Node");
         dolphinNode.attachObject(dolphinE);
         dolphinNode.scale(1.5f, 1.5f, 1.5f);
-        dolphinNode.setLocalPosition(1.0f, 0.5f, -1.4f);       
-		dolphinNode.yaw(Degreef.createFrom(45.0f));		
+        dolphinNode.setLocalPosition(-222.5f, 2.8f, 319.3f);       
+		dolphinNode.yaw(Degreef.createFrom(0.0f));		
+
+   
+
 	}
 	
 	public void updateVerticalPosition() {
@@ -476,9 +489,11 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		//Sets Avatar above terrain 
 		Vector3 newAvatarPosition = Vector3f.createFrom(
 				localAvatarPosition.x(),
-				terrHeight+0.5f,
+				terrHeight+2.8f,
 				localAvatarPosition.z());
 		dolphinN.setLocalPosition(newAvatarPosition);
+		
+		
 		
 	}
 	
@@ -792,7 +807,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		if (avatar != null) { 
 			numOfAvatars += 1;
 			sm = this.getEngine().getSceneManager();
-			Entity ghostE = sm.createEntity("ghosts " + String.valueOf(numOfAvatars), "dolphinHighPoly.obj");
+			Entity ghostE = sm.createEntity("ghosts " + String.valueOf(numOfAvatars), "fullycar3.obj");
 			ghostE.setPrimitive(Primitive.TRIANGLES);
 			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(avatar.getID().toString());
 			ghostN.attachObject(ghostE);

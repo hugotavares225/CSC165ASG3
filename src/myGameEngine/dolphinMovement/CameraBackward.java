@@ -23,7 +23,7 @@ public class CameraBackward extends AbstractInputAction {
 
 	@Override
 	public void performAction(float t, Event e) {
-		float speed = .1f;
+		float speed = 50.0f;
 		/*For keyboard*/
 		//rotate vector
 		if (camera.getMode() == 'c') {
