@@ -28,7 +28,7 @@ public class Camera3PController {
 		target = targ;
 		cameraAzimuth = 225.0f; 	//Start from BEHIND and ABOVE the target
 		cameraElevation = 20.0f;	//elevation is in degrees
-		radius = 15.0f;
+		radius = 30.0f;
 		worldUpVec = Vector3f.createFrom(0.0f, 1.0f, 0.0f);
 		setupInput(im, controllerName);
 		updateCameraPosition();
@@ -163,8 +163,8 @@ public class Camera3PController {
 		public void performAction(float time, Event evt) {
 			float rotAmount = 0.5f;
 			radius += rotAmount;
-			if (radius >= 200.0f)
-				radius = 200.0f;
+			if (radius >= 359.0f)
+				radius = 359.0f;
 			radius = radius % 360;
 			System.out.println(radius);
 			updateCameraPosition();

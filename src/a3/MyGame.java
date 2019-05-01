@@ -4,6 +4,7 @@ package a3;
 import java.awt.Color;
 import java.awt.DisplayMode;
 import java.awt.GraphicsEnvironment;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.io.File;
@@ -27,6 +28,8 @@ import javax.script.ScriptEngineFactory;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.vecmath.Vector3d;
+
+import com.bulletphysics.collision.shapes.SphereShape;
 
 import Network.*;
 import ray.input.GenericInputManager;
@@ -61,10 +64,14 @@ import ray.rage.scene.SkyBox;
 import ray.rage.scene.Tessellation;
 import ray.rage.util.BufferUtil;
 import ray.rml.Degreef;
+import ray.rml.Matrix3;
+import ray.rml.Matrix3f;
+import ray.rml.Matrix4;
+import ray.rml.Matrix4f;
 import ray.rml.Vector3;
 import ray.rml.Vector3f;
-import myGameEngine.dolphinMovement.*;
 import myGameEngine.nodeControllers.*;
+import myGameEngine.shootAction.ShootForward;
 import net.java.games.input.Event;
 import myGameEngine.avatarMovement.*;
 import myGameEngine.camera3PMovement.*;
@@ -74,51 +81,62 @@ import ray.rage.asset.texture.*;
 import ray.rage.util.*;
 import java.awt.geom.*;
 
+import ray.rml.Angle;
+import ray.rml.Degreef;
+
+import ray.physics.PhysicsEngine;
+import ray.physics.PhysicsObject;
+import ray.physics.PhysicsEngineFactory;
+
 
 public class MyGame extends VariableFrameRateGame implements MouseListener, MouseMotionListener  {
 	
 	//Declare Action variables
-	private Action cameraBackward, cameraForward, cameraLeft, cameraRight, //Action Camera Classes Declarations
-					yawCameraLeft, yawCameraRight, pitchCameraUp, pitchCameraDown, gamePadYaw, 
-					gamePadPitch, gamePadBackForward, gamePadRightLeft;//offOnDolphin, //Action Camera Classes Declarations
 	private Camera camera;
 	private Action moveForwardAction, moveLeftAction, moveRightAction,
-		moveBackwardAction, yawLeftAction, yawRightAction, pitchUpAction, pitchDownAction;
-	 ;
-	
+		moveBackwardAction, yawLeftAction, yawRightAction, pitchUpAction, 
+		pitchDownAction;
+
+	private Action shootForward;
+	 
 	
 	//Declare Scene node variables
 	private SceneNode cameraNode;
     private SceneNode dolphinNode;
+    private SceneNode tessN, ballNode, ballNodeOn, ballNodeOff, treeNode, treeNode2;
     private SceneNode plightNode;
+    private Entity ballOffE;
+    
 	private InputManager im; // Input Manager for action classes
 	private SceneManager sm;
 	
 	//Dolphin Scene
 	private List<String> planetsCollidedWith = new ArrayList<String>(); //list of planets already collided with
+	private List<SceneNode> terrainNodes = new ArrayList<SceneNode>();
 	
 	
 	//Minimizing variable allocation in update /From dolphin click source code
 	private GL4RenderSystem rs;
 	private float elapsTime = 0.0f;
+	private float projectileTime = 0.0f;
 	private String elapsTimeStr, counterStr, dispStr, dispStr2;
 	private int elapsTimeSec, counter = 0;
 	
-	/*----------ASG2--------*/
 	
-	//3P Camera declarations
+	//CAMERA VARIABLES
 	private Camera3PController orbitController1, orbitController2, orbitController3;
 	
-	//Controllers
+	//CONTROLLER VARIABLES
 	private StretchController sc;
 	private BounceController bc, bc2;
 	private RotateAroundController rac;
 	private Viewport topViewport;
 	
-	//----3RD ASG----
+	//SCRIPT ENGINE VARIABLES
 	protected ScriptEngine jsEngine;
 	protected File scriptFile3, scriptFile1, scriptFile2;
 	
+	//SERVER VARIABLES
 	private String serverAddress;
 	private int serverPort;
 	private ProtocolType serverProtocol;
@@ -126,11 +144,21 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	private Vector<UUID> gameObjectsToRemove;	
 	private GameClient gameClient;
 	private static GameServerUDP server;
-	static MyGame game;
 
-	//skybox variables
+	//SKYBOX
 	private static final String SKYBOX_NAME = "SkyBox";
 	static int numOfAvatars = 0;
+	
+	//GAME VARIABLES
+	private static MyGame game;
+	private int health = 100;
+	
+	//PHYSICS ENGINE VARIABLES
+	private PhysicsEngine physicsEng;
+	private PhysicsObject carPhysObj, treePhysObj, gndPlane;
+	private boolean shooting = false;
+	private float time;
+	private static int numOfProjectiles = 0;
 	
 
     public MyGame(String serverAddr, int sPort) {
@@ -138,7 +166,6 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     	serverAddress = serverAddr;
     	serverPort = sPort;
     	serverProtocol = ProtocolType.UDP;
-
     }
     
 	@Override
@@ -165,11 +192,14 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         rw.getViewport(0).setCamera(camera);		
 		camera.setPo((Vector3f)Vector3f.createFrom(0.0f, 0.0f, 2.5f));
         cameraNode = rootNode.createChildSceneNode(camera.getName() + "Node");
-        cameraNode.attachObject(camera);	
+        cameraNode.attachObject(camera);       
         camera.setMode('n');
-        camera.getFrustum().setFarClipDistance(1000.0f);
+        camera.getFrustum().setFarClipDistance(4000.0f);
 	}
 	
+	/*
+	 * SETUP SCENE FUNCTION
+	 * */
 	@Override
 	protected void setupScene(Engine eng, SceneManager sm) throws IOException {
 		sm = eng.getSceneManager();
@@ -185,6 +215,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		runScript(scriptFile1);
 		
         makeEntities(eng);
+
         
 		//**LIGHT**
         //LIGHT SETUP THROGUH SCRIPT
@@ -203,21 +234,29 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		// 2^patches: min=5, def=7, warnings start at 10
 		Tessellation tessE = sm.createTessellation("tessE", 6);
 		// subdivisions per patch: min=0, try up to 32
-		tessE.setSubdivisions(32f);
-		SceneNode tessN = sm.getRootSceneNode().createChildSceneNode("tessN");
+		tessE.setSubdivisions(16f);
+		tessN = sm.getRootSceneNode().createChildSceneNode("tessN");
 		tessN.attachObject(tessE);
+		
 		// to move it, note that X and Z must BOTH be positive OR negative
 		// tessN.translate(Vector3f.createFrom(-6.2f, -2.2f, 2.7f));
 		//tessN.yaw(Degreef.createFrom(37.2f));
-		tessN.scale(2000, 800, 2000);
-		tessE.setTexture(this.getEngine(), "TextureTerrain.png");
-		tessE.setHeightMap(this.getEngine(), "heightTerrain.png");
-		//tessE.setNormalMap(this.getEngine(),"brick_normal.png");
+		tessN.scale(8000.0f, 55000.0f, 8000.0f);
+		tessE.setTexture(this.getEngine(), "mountain.jpg");
+		tessE.setHeightMap(this.getEngine(), "MountainH.png");
+		tessE.setNormalMap(this.getEngine(),"MountainN.png");
 		setSkyBox(eng);
+
+		
+        //initPhysicsSystem();
+        //createRagePhysicsWorld();		
 	}
 
-	//Orbit cameras
+	/*
+	 * UPDATE CAMERAS
+	 */
 	protected void setupOrbitCameras(Engine eng, SceneManager sm) { 
+		
 		String gpName = im.getFirstGamepadName();
 		//String msName = im.getMouseName();
 		String kbName = im.getKeyboardName();
@@ -226,11 +265,13 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		//orbitController3 = new Camera3PController(camera2, cameraNode2, dolphinNode2, msName, im);
 	}
 
+	/*
+	 * UPDATE
+	 */
 	@Override
 	protected void update(Engine engine) {
-		String 	dispStr = "START";
+		String 	dispStr = "Health Remaining: " + health;
 		int topBot = topViewport.getActualBottom();
-		System.out.println(dolphinNode.getLocalPosition());
 			
 		// build and set HUD
 		rs = (GL4RenderSystem) engine.getRenderSystem();
@@ -242,59 +283,179 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		//HUD
 		rs.setHUD(dispStr, 25, topBot+5);	
 
-			
-		//Check collisions with the planets	and black hole
 		//checkCollision(NodeGoesHere);
-		
-		//process inputs
 		im.update(elapsTime);
-		// run script again in update() to demonstrate dynamic modification 
-		long modTime = scriptFile2.lastModified();
-		//if   (modTime > ) {   
-			//fileLastModifiedTime = modTime;
-			//this.runScript(scriptFile1);
-		//	sm.getAmbientLight().setIntensity(new Color(.1f, .1f, .1f));
-		//} 
 		orbitController1.updateCameraPosition();
 		orbitController2.updateCameraPosition();
 		processNetworking(elapsTime);
-		//gc.processPackets();
+
+		//Projectile
+		if (shooting) {
+			//keep track of time starting from 0
+			projectileTime += engine.getElapsedTimeMillis();
+			
+				//projectile doesn't exist so create one and send create message to server
+			    if (ballNodeOn == null) {
+		        ballNodeOn = sm.getRootSceneNode().createChildSceneNode("ballNodeOn");
+		        ballNodeOn.scale(4.5f, 4.5f, 4.5f);
+		        ballNodeOn.attachObject(ballOffE);
+		        ballNodeOn.moveForward(6.0f);
+		        ballNodeOn.setLocalPosition(dolphinNode.getLocalPosition());	
+				ballNodeOn.setLocalRotation(dolphinNode.getLocalRotation());
+				gameClient.sendCreateMessagesP(ballNodeOn.getWorldPosition());
+			    }
+			    
+			    //Move the ball node 
+			    if (ballNodeOn != null) {
+					ballNodeOn.moveForward(30.0f);//ball speed
+					gameClient.sendMoveMessagesP(ballNodeOn.getWorldPosition());
+					gameClient.sendScaleMessagesP(ballNodeOn.getLocalScale());
+					gameClient.sendRotateMessagesP(ballNodeOn.getWorldRotation());
+					
+					for (SceneNode element : terrainNodes) {
+						checkCollision(element);
+					}
+	
+					updateProjectilePosition();
+			    }
+			    
+			//Projectile only exists for 2.5 seconds
+			if (projectileTime >= 1500f ) {
+				//System.out.println("Shooting no more");
+				projectileTime = 0f;
+				sm.destroySceneNode(ballNodeOn);
+				ballNodeOn = null;
+				shooting = false;
+			}
+		}
+			gameClient.sendScaleMessages(dolphinNode.getLocalScale());
+			gameClient.sendRotateMessages(dolphinNode.getWorldRotation());	
+
+	}
+
+	/*
+	 * PHYSICS SYSTEM
+	 */
+	private void initPhysicsSystem() { 
+		String engine = "ray.physics.JBullet.JBulletPhysicsEngine";
+		float[] gravity = {0f,-1f, 0f};
+		physicsEng = PhysicsEngineFactory.createPhysicsEngine(engine);
+		//physicsEng.initSystem();
+		//physicsEng.setGravity(gravity);
 
 	}
 	
-	//Checks collision between objects
+	/*
+	 * PHYSICS WORLD
+	 */
+	private void createRagePhysicsWorld() {
+		float mass = 1.0f;
+		float up[] = {0.0f, 1.0f, 0.0f};
+		double[] temptf;
+		float [] tempSize = {1.5f, 1.5f, 1.5f};
+		temptf = toDoubleArray(treeNode.getLocalTransform().toFloatArray());
+		//treePhysObj = physicsEng.addSphereObject(physicsEng.nextUID(), mass, temptf, 2.0f);
+		//treePhysObj.setBounciness((float) 1.0);
+		//treeNode.setPhysicsObject(treePhysObj);
+
+		
+		temptf = toDoubleArray(dolphinNode.getLocalTransform().toFloatArray());
+		//carPhysObj = physicsEng.addSphereObject(physicsEng.nextUID(), mass, temptf, 2.0f);
+		//carPhysObj.setBounciness(1.0f);
+		//dolphinNode.setPhysicsObject(carPhysObj);
+
+		/*temptf = toDoubleArray(tessN.getLocalTransform().toFloatArray());
+		gndPlane = physicsEng.addStaticPlaneObject(physicsEng.nextUID(), temptf, up, 0.0f);
+		gndPlane.setBounciness(1.0f);
+		tessN.scale(8000.0f, 55000.0f, 8000.0f);
+		tessN.setPhysicsObject(gndPlane);*/
+		//ballPhysObj.setFriction(1.0f);
+		//ballPhysObj.setLinearVelocity(horizontal);
+		//ballNodeOn.setPhysicsObject(ballPhysObj);
+		//ballNodeOn.setLocalPosition((ballNodeOn.getLocalPosition());
+		
+	}
+	
+	/*
+	 * FLOAT ARRAY CREATOR
+	 */
+	private float[] toFloatArray(double[] arr) { 
+		if (arr == null) return null;	
+		int n = arr.length;
+		float[] ret = new float[n];
+		for (int i = 0; i < n; i++) { 
+			ret[i] = (float)arr[i];
+		}
+		return ret;
+	}
+	
+	/*
+	 * DOUBLE ARRAY CREATOR
+	 */
+	private double[] toDoubleArray(float[] arr) { 
+		if (arr == null) return null;
+		int n = arr.length;
+		double[] ret = new double[n];
+		for (int i = 0; i < n; i++) { 
+			ret[i] = (double)arr[i];
+		}
+		return ret;
+	}
+	
+	
+	//Sets whether projectile is being shot
+	public void setShooting (boolean set) {
+		shooting = set;
+	}
+	
+	public boolean getShooting () {
+		return shooting;
+	}
+	
+	/*
+	 * CHECK COLLISIONS BETWEEN OBJECTS
+	 */
 	public void checkCollision(SceneNode nodeObj) {
 		
-		//Entity Location
-		Vector3f entityLoc = (Vector3f) nodeObj.getLocalPosition();
+
+		//Scene Node Obj
+		Vector3f nodeObjLoc = (Vector3f) nodeObj.getLocalPosition();
 		
-		//Dolphin 1 location from entity 
-		Vector3f dolphin1Loc = (Vector3f) dolphinNode.getLocalPosition();
-		Vector3f dol1DistFromPl = (Vector3f)entityLoc.sub(dolphin1Loc);
-		float plDistFromDolphin1 = dol1DistFromPl.length();
+		//Car loc from Scene Node
+		Vector3f ballLoc = (Vector3f) ballNodeOn.getLocalPosition();
+		Vector3f ballDistFromObj = (Vector3f)nodeObjLoc.sub(ballLoc);
+		
+		
+		float ballDistFromOb = ballDistFromObj.length();
 		
 		//How big the entity is x axis wise
 		float nodeObjDis = nodeObj.getLocalScale().x();
 		
-		
+
 		//When player collides with planet, place the core on the dolphin and make planet smaller
-		if (plDistFromDolphin1 < nodeObjDis + 2  &&  dolphinNode.getChildCount() != 1) {
+		if (ballDistFromOb < nodeObjDis + 5 ) {
 			if (!planetsCollidedWith.contains(nodeObj.getName())) {
+				System.out.println("MY OWN COLLISION SHIT NOT FROM THE ENGINE");
 				planetsCollidedWith.add(nodeObj.getName());
+				sm.destroySceneNode(nodeObj.getName());
+				//sm.destroySceneNode(ballNodeOn);
 			}
-		}	
+		}
 		
 	}
 	
 
-	//SetUp Inputs for Controls
+	/*
+	 * SETUP INPUTS FOR CONTROLS
+	 */
 	protected void setupInputs() {
 		//New input manager
 		im = new GenericInputManager();
+		System.out.print("INPUTSACTIVE");
 		
 		SendCloseConnectionPacketAction close = new SendCloseConnectionPacketAction();
 		
-		//
+		//Initialize Action Classes
 		moveForwardAction = new MoveForwardAction(dolphinNode, gameClient, this);
 		moveBackwardAction = new MoveBackAction(dolphinNode, gameClient, this);
 		moveLeftAction = new MoveLeftAction(dolphinNode, gameClient, this);
@@ -303,328 +464,141 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		yawRightAction = new YawRightAction(dolphinNode, gameClient, this);
 		pitchUpAction = new PitchUpAction(dolphinNode, gameClient, this);
 		pitchDownAction = new PitchDownAction(dolphinNode, gameClient, this);
+		
+        shootForward = new ShootForward(this);
 			
-		//Instantiate Action classes 
-		/*cameraForward = new CameraForward(camera, dolphinNode);
-		cameraBackward = new CameraBackward(camera, dolphinNode);
-		cameraRight = new CameraRight(camera, dolphinNode);
-		cameraLeft = new CameraLeft(camera, dolphinNode);
-		yawCameraLeft = new YawCameraLeft(camera, dolphinNode);
-		yawCameraRight = new YawCameraRight(camera, dolphinNode);
-		pitchCameraUp = new PitchCameraUp(camera, dolphinNode);
-		pitchCameraDown = new PitchCameraDown(camera, dolphinNode);
-		
-		//Action classes 
-		gamePadBackForward = new GamePadBackForward(camera, dolphinNode);
-		gamePadRightLeft = new GamePadRightLeft(camera, dolphinNode);
-		gamePadPitch = new GamePadPitch(camera, dolphinNode);
-		gamePadYaw = new GamePadYaw(camera, dolphinNode);*/
-		
-		//attach action objects to gamepad
-		/*if(im.getFirstGamepadName() != null) {
-			String gpName = im.getFirstGamepadName();
-    		//move forward
-    		im.associateAction(gpName, 
-    				net.java.games.input.Component.Identifier.Axis.Y,
-    				gamePadBackForward, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		//move backward
-    		im.associateAction(gpName, 
-    				net.java.games.input.Component.Identifier.Axis.X,
-    				gamePadRightLeft, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		//yaw
-    		im.associateAction(gpName, 
-    				net.java.games.input.Component.Identifier.Axis.RX,
-    				gamePadYaw, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		//pitch
-    		im.associateAction(gpName, 
-    				net.java.games.input.Component.Identifier.Axis.RY,
-    				gamePadPitch, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-		}*/
 			
 		//attach action objects to keyboard 
     	if(im.getKeyboardName() != null) {
     		String kbName = im.getKeyboardName();
+    		System.out.println("inside key");
+    		//move forward with W
+    		im.associateAction(kbName, 
+    				net.java.games.input.Component.Identifier.Key.D,
+    				shootForward, InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY);
     		
-    		//w; move forward
+    		//move forward with W
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.W,
     				moveForwardAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
-    		//mode back
+    		//move back with S
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.S,
     				moveBackwardAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
-    		//move right
-    		//im.associateAction(kbName, 
-    				//net.java.games.input.Component.Identifier.Key.D,
-    				//moveLeftAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
-    		//move left
-    		//im.associateAction(kbName, 
-    				//net.java.games.input.Component.Identifier.Key.A,
-    				//moveRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		
-    		//yaw left
+    		//yaw right with E
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.Q,
     				yawLeftAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
-    		//yaw left
+    		//yaw left with Q
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.E,
     				yawRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
-    		//pitch up
-    		//im.associateAction(kbName, 
-    			//	net.java.games.input.Component.Identifier.Key.C,
-    				//pitchUpAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		
-    		//pitch downn
-    		//im.associateAction(kbName, 
-    				//net.java.games.input.Component.Identifier.Key.V,
-    				//pitchDownAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
     		//Close client
     		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.M,
+    				net.java.games.input.Component.Identifier.Key.C,
     				close, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		//s; move backward
-    		/*im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.S, 
-    				cameraBackward, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		//a; move left
-    		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.A, 
-    				cameraLeft, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		//d; move right
-    		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.D, 
-    				cameraRight, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		//left key; yaw left
-    		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.LEFT,
-    				yawCameraLeft, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		//right key; yaw right
-    		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.RIGHT,
-    				yawCameraRight, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		//up key; pitch up
-    		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.UP,
-    				pitchCameraUp, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		//down key; pitch down
-    		im.associateAction(kbName, 
-    				net.java.games.input.Component.Identifier.Key.DOWN,
-    				pitchCameraDown, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
-    		//space bar; offOn
-    		//im.associateAction(kbName, 
-    				//net.java.games.input.Component.Identifier.Key.SPACE,
-    				//offOnDolphin, InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY);*/
     	}
 	}
 	
-	/*---------------------------------------------------------*/
-	/*-----Create the Entities---*/
-	/*---------------------------------------------------------*/
+	/*
+	 *  CREATE THE ENTITITES
+	 */
 	private void makeEntities(Engine eng) throws IOException {
 		
-		//Set up X Axis
-		ManualObject x = makeX(eng, sm);
-		SceneNode xNode = sm.getRootSceneNode().createChildSceneNode("XNode");
-		xNode.attachObject(x);
+        //BALL NODE SETUP
+        Entity ballOnE = sm.createEntity("ballOnE", "sphere.obj");
+		Material ballMat = sm.getMaterialManager().getAssetByPath("sphere.mtl");
+        ballOnE.setPrimitive(Primitive.TRIANGLES);    
+		ballOnE.setMaterial(ballMat);
 		
-		//Set up Y Axis
-		ManualObject y = makeY(eng, sm);
-		SceneNode yNode = sm.getRootSceneNode().createChildSceneNode("YNode");
-		yNode.attachObject(y);
+        ballOffE = sm.createEntity("ballOffE", "sphere.obj");
+		Material balloffMat = sm.getMaterialManager().getAssetByPath("sphere.mtl");
+        ballOnE.setPrimitive(Primitive.TRIANGLES);    
+		ballOnE.setMaterial(balloffMat);
 		
-		//set up Z Axis
-		ManualObject z = makeZ(eng, sm);
-		SceneNode zNode = sm.getRootSceneNode().createChildSceneNode("ZNode");
-		zNode.attachObject(z);
 		
-		/**MODEL**/
-		//--------------First Dolphin-------------
-        //Create dolphin entity
-		Material dolphinMat = sm.getMaterialManager().getAssetByPath("fullycar3.mtl");
+		//CAR NODE SETUP
         Entity dolphinE = sm.createEntity("myDolphin", "fullycar3.obj");
-          //material
-
-        dolphinE.setPrimitive(Primitive.TRIANGLES);    
-		dolphinE.setMaterial(dolphinMat);
-		
-		  //texture
+		Material dolphinMat = sm.getMaterialManager().getAssetByPath("fullycar3.mtl");
 	    Texture tex = eng.getTextureManager().getAssetByPath("fullycar3.png"); //Get Texture
 	    TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
 	    tstate.setTexture(tex); //set texture for black hole
-        //create dolphin node
+	    dolphinE.setRenderState(tstate);//
+        dolphinE.setPrimitive(Primitive.TRIANGLES);    
+		dolphinE.setMaterial(dolphinMat);
+
         dolphinNode = sm.getRootSceneNode().createChildSceneNode(dolphinE.getName() + "Node");
         dolphinNode.attachObject(dolphinE);
+        dolphinNode.setLocalPosition(778.5f, 2.5f, 3540.6f);
+		Angle rotAmt = Degreef.createFrom(50f);
+        dolphinNode.yaw(rotAmt);
         dolphinNode.scale(1.5f, 1.5f, 1.5f);
-        dolphinNode.setLocalPosition(-222.5f, 2.8f, 319.3f);       
-		dolphinNode.yaw(Degreef.createFrom(0.0f));		
 
-   
-
+        
+        /*---Set up trees----*/
+        Entity tree1 = sm.createEntity("tree1", "tree.obj");
+        Material treeMat = sm.getMaterialManager().getAssetByPath("tree.mtl");
+        tree1.setPrimitive(Primitive.TRIANGLES);
+        tree1.setMaterial(treeMat);
+        treeNode = sm.getRootSceneNode().createChildSceneNode("treeNode");
+        treeNode.attachObject(tree1);
+        treeNode.setLocalPosition(778.5f, 5.2f, 3572.6f);
+        treeNode.scale(8.0f, 8.0f, 8.0f);
+        terrainNodes.add(treeNode);
+        
+        Entity tree2 = sm.createEntity("tree2", "tree2.obj");
+        Material treeMat2 = sm.getMaterialManager().getAssetByPath("tree.mtl");
+        tree2.setPrimitive(Primitive.TRIANGLES);
+        tree2.setMaterial(treeMat2);
+        treeNode2 = sm.getRootSceneNode().createChildSceneNode("treeNode2");
+        treeNode2.attachObject(tree2);
+        treeNode2.setLocalPosition(710.5f, 1.2f, 3566.6f);
+        treeNode2.scale(12.0f, 12.0f, 12.0f);
+        terrainNodes.add(treeNode2);
 	}
 	
+	//Updare vertical position of the car for terrain
 	public void updateVerticalPosition() {
 		SceneNode dolphinN = this.getEngine().getSceneManager().getSceneNode("myDolphinNode");
 		SceneNode tessN = this.getEngine().getSceneManager().getSceneNode("tessN");
 		Tessellation tessE = ((Tessellation) tessN.getAttachedObject("tessE"));
 		
-		// Figure out Avatar's position relative to plane
+		//Figure out Avatar's position relative to plane
 		Vector3 worldAvatarPosition = dolphinN.getWorldPosition();
 		Vector3 localAvatarPosition = dolphinN.getLocalPosition();
 		float terrHeight = tessE.getWorldHeight(worldAvatarPosition.x()+0.1f, worldAvatarPosition.z()+0.1f);
-		// use avatar World coordinates to get coordinates for height
-		/*Vector3 newAvatarPosition = Vector3f.createFrom(
-		localAvatarPosition.x(),// Keep the X coordinate
-		tessE.getWorldHeight(		// The Y coordinate is the varying height
-		worldAvatarPosition.x(),
-		worldAvatarPosition.z()),
-		localAvatarPosition.z());	*	//Keep the Z coordinate*/
-		
+		// use avatar World coordinates to get coordinates for height		
 		//Sets Avatar above terrain 
 		Vector3 newAvatarPosition = Vector3f.createFrom(
 				localAvatarPosition.x(),
-				terrHeight+2.8f,
+				terrHeight+2.5f,
 				localAvatarPosition.z());
-		dolphinN.setLocalPosition(newAvatarPosition);
-		
-		
-		
+		dolphinN.setLocalPosition(newAvatarPosition);	
 	}
 	
-	/*-------------------------------*/
-	/*--------MANUAL OBJECTS---------*/
-	/*------------------------------**/
 	
-	/*Create X axis line*/
-	protected ManualObject makeX(Engine eng, SceneManager sm) throws IOException {
-		//Make X axes vertices
-		float[] verticesX = new float[] {
-				-500.0f, 0.0f, 0.0f,
-				500.0f, 0.0f, 0.0f,
-		};
+	public void updateProjectilePosition() {
+		SceneNode tessN = this.getEngine().getSceneManager().getSceneNode("tessN");
+		Tessellation tessE = ((Tessellation) tessN.getAttachedObject("tessE"));
 		
-		//Make indices
-		int[] indicesX = new int[] {0,1};
 		
-		//Create the manual object
-		ManualObject x = sm.createManualObject("X");
-		ManualObjectSection xSec = x.createManualSection("XSection");
-		x.setGpuShaderProgram(sm.getRenderSystem().
-				getGpuShaderProgram(GpuShaderProgram.Type.RENDERING));
-		xSec.setPrimitive(Primitive.LINES);
-
-		//create buffers
-		FloatBuffer vertBufX = BufferUtil.directFloatBuffer(verticesX);
-		IntBuffer indexBufX = BufferUtil.directIntBuffer(indicesX);
-
-		//set the buffers
-		xSec.setVertexBuffer(vertBufX);
-		xSec.setIndexBuffer(indexBufX);
+		//Figure out Avatar's position relative to plane
+		Vector3 worldProjectilePosition = ballNodeOn.getWorldPosition();
+		Vector3 localProjectilePosition = ballNodeOn.getLocalPosition();
+		float terrHeight = tessE.getWorldHeight(worldProjectilePosition.x()+0.1f, worldProjectilePosition.z()+0.1f);
 		
-		//Get material
-	    //Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-	    //mat.setEmissive(Color.RED);
-	    
-	    //Get Texture
-	    Texture tex = eng.getTextureManager().getAssetByPath("bright-red.jpeg");
-	    TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-	    
-	    //Set texture
-	    tstate.setTexture(tex);
-	    x.setRenderState(tstate);
-	    //x.setMaterial(mat);    
-		x.setDataSource(DataSource.INDEX_BUFFER);
-		return x;		
-	}
-	
-	/*Create Y Axis Line*/
-	protected ManualObject makeY(Engine eng, SceneManager sm) throws IOException {
-		//Make Y axes vertices
-		float[] verticesY = new float[] {
-				0.0f, -500.0f, 0.0f,
-				0.0f, 500.0f, 0.0f,
-		};
-		
-		//Make indices
-		int[] indicesY = new int[] {0,1};
-		
-		//Create the manual object
-		ManualObject y = sm.createManualObject("Y");
-		ManualObjectSection ySec = y.createManualSection("YSection");
-		y.setGpuShaderProgram(sm.getRenderSystem().
-				getGpuShaderProgram(GpuShaderProgram.Type.RENDERING));
-		ySec.setPrimitive(Primitive.LINES);
-
-		//create buffers
-		FloatBuffer vertBufY = BufferUtil.directFloatBuffer(verticesY);
-		IntBuffer indexBufY = BufferUtil.directIntBuffer(indicesY);
-
-		//set the buffers
-		ySec.setVertexBuffer(vertBufY);
-		ySec.setIndexBuffer(indexBufY);
-		
-		//Get material
-	    //Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-	    //mat.setEmissive(Color.RED);
-	    
-	    //Get Texture
-	    Texture tex = eng.getTextureManager().getAssetByPath("bright-green.jpeg");
-	    TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-	    
-	    //Set texture
-	    tstate.setTexture(tex);
-	    y.setRenderState(tstate);
-	    //y.setMaterial(mat);    
-		y.setDataSource(DataSource.INDEX_BUFFER);
-		return y;		
-	}
-	
-	/*Create Z Axis Line*/
-	protected ManualObject makeZ(Engine eng, SceneManager sm) throws IOException {
-		//Make Z axes vertices
-		float[] verticesZ = new float[] {
-				0.0f, 0.0f, -500.0f,
-				0.0f, 0.0f, 500.0f,
-		};
-		
-		//Make indices
-		int[] indicesZ = new int[] {0,1};
-		
-		//Create the manual object
-		ManualObject z = sm.createManualObject("Z");
-		ManualObjectSection zSec = z.createManualSection("ZSection");
-		z.setGpuShaderProgram(sm.getRenderSystem().
-				getGpuShaderProgram(GpuShaderProgram.Type.RENDERING));
-		zSec.setPrimitive(Primitive.LINES);
-
-		//create buffers
-		FloatBuffer vertBufZ = BufferUtil.directFloatBuffer(verticesZ);
-		IntBuffer indexBufZ = BufferUtil.directIntBuffer(indicesZ);
-
-		//set the buffers
-		zSec.setVertexBuffer(vertBufZ);
-		zSec.setIndexBuffer(indexBufZ);
-		
-		//Get material
-	    //Material mat = sm.getMaterialManager().getAssetByPath("default.mtl");
-	    //mat.setEmissive(Color.GREEN);
-	    
-	    //Get Texture
-	    Texture tex = eng.getTextureManager().getAssetByPath("bright-blue.jpeg");
-	    TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-	    
-	    //Set texture
-	    tstate.setTexture(tex);
-	    z.setRenderState(tstate);
-	    //z.setMaterial(mat);    
-		z.setDataSource(DataSource.INDEX_BUFFER);
-		return z;		
+		//Sets Avatar above terrain 
+		Vector3 newProjectilePosition = Vector3f.createFrom(
+				localProjectilePosition.x(),
+				terrHeight+2.5f,
+				localProjectilePosition.z());
+		ballNodeOn.setLocalPosition(newProjectilePosition);	
 	}
 	
 	
@@ -662,7 +636,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	        }
 		}
 		
-		//If you are joining enter in ip address
+		//If you are joining enter in address
 		else
 		{
 			System.out.println("Enter host server's IP address:");
@@ -752,9 +726,10 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		}
 		// remove ghost avatars for players who have left the game
 		Iterator<UUID> it = gameObjectsToRemove.iterator();
-		
-		while(it.hasNext()) { 
-			sm.destroySceneNode(it.next().toString());
+		if (it != null ) {
+			while(it.hasNext()) { 
+				sm.destroySceneNode(it.next().toString());
+			}
 		}
 		gameObjectsToRemove.clear(); 
 	}
@@ -799,24 +774,56 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		return dolphinN.getWorldPosition();
 	}
 	
+	/*---------------------
+	 * Gets Projectile Position
+	 ---------------------*/
+	public Vector3 getProjectilePosition() {
+		//Vector3 pos;
+		if (ballNodeOn != null) {
+			return ballNodeOn.getWorldPosition();
+		}
+		else return null;
+		//return pos;
+	}
+	
 	/*-----------------------
 	 * Add a new ghost avatar
 	 ----------------------*/
 	public void addGhostAvatarToGameWorld(GhostAvatar avatar, Vector3 pos)
 			throws IOException {
 		if (avatar != null) { 
+			//Avatar
 			numOfAvatars += 1;
 			sm = this.getEngine().getSceneManager();
-			Entity ghostE = sm.createEntity("ghosts " + String.valueOf(numOfAvatars), "fullycar3.obj");
-			ghostE.setPrimitive(Primitive.TRIANGLES);
+			Entity ghostE = sm.createEntity("ghosts" + String.valueOf(numOfAvatars), "fullycar3.obj");
+			ghostE.setPrimitive(Primitive.TRIANGLES);		
 			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(avatar.getID().toString());
+			//System.out.println(avatar.getID().toString());
 			ghostN.attachObject(ghostE);
 			ghostN.setLocalPosition(pos);
 			avatar.setNode(ghostN);
 			avatar.setEntity(ghostE);
-			ghostN.yaw(Degreef.createFrom(45.0f));	
-			//avatar.setPosition(node’s position... maybe redundant);
-		} 	
+			
+		}
+	}
+	
+	/*-----------------------
+	 * Add a new ghost projectile
+	 ----------------------*/
+	public void addGhostProjectileToGameWorld(GhostProjectile projectile, Vector3 pos)
+			throws IOException {
+		if (projectile != null) { 
+			//Avatar
+			numOfProjectiles  += 1;
+			sm = this.getEngine().getSceneManager();
+			Entity ghostE = sm.createEntity("ghostProj" + String.valueOf(numOfProjectiles), "sphere.obj");
+			ghostE.setPrimitive(Primitive.TRIANGLES);		
+			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode("proj"+numOfProjectiles);
+			ghostN.attachObject(ghostE);
+			ghostN.setLocalPosition(pos);
+			projectile.setNode(ghostN);
+			projectile.setEntity(ghostE);
+		}
 	}
 	
 	/*--------------------
@@ -827,6 +834,16 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			gameObjectsToRemove.add(avatar.getID());
 		}
 	}
+	
+	/*--------------------
+	 * Remove ghost projectile
+	 --------------------*/
+	public void removeGhostProjectileFromGameWorld(GhostProjectile projectile) { 
+		if(projectile != null) {
+			gameObjectsToRemove.add(projectile.getID());
+		}
+	}
+	
 	
 	private class SendCloseConnectionPacketAction extends AbstractInputAction { // for leaving the game... need to attach to an input device
 		@Override

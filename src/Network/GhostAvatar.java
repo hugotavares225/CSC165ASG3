@@ -4,18 +4,21 @@ import java.util.UUID;
 
 import ray.rage.scene.Entity;
 import ray.rage.scene.SceneNode;
+import ray.rml.Matrix3;
 import ray.rml.Vector3;
 
 public class GhostAvatar {
 
 	private UUID id;
 	private Vector3 position;
+	private Matrix3 rotation;
 	private SceneNode node;
 	private Entity entity;
 	
 	public GhostAvatar(UUID id, Vector3 position) { 
 		this.id = id;
 		this.position = position;
+
 		
 	}
 	/*Set and Return Ghost Avatar ID*/
@@ -31,6 +34,21 @@ public class GhostAvatar {
 	public void setPosition(Vector3 position) {
 		node.setLocalPosition(position);
 	}
+	
+	/*Get and set Rotation*/
+	public Matrix3 getRotation() {
+		return node.getLocalRotation();
+	}
+	
+	public void setRotation(Matrix3 rotation) {
+		node.setLocalRotation(rotation);
+	}
+	
+	//SET SCALE
+	public void setScale(Vector3 scale) {
+		node.setLocalScale(scale);
+	}
+	
 	
 	/*Set and Return Ghost Avatar node*/
 	public SceneNode getNode() {

@@ -22,7 +22,8 @@ public class YawRightAction extends AbstractInputAction {
 	public void performAction(float time, Event e) { 
 		Angle rotAmt = Degreef.createFrom(-3.0f);
 		avN.yaw(rotAmt);
-		gameClient.sendMoveMessages(avN.getWorldPosition());
+		gameClient.sendRotateMessages(avN.getWorldRotation());
+		myGame.updateVerticalPosition();
 	}
 
 }
