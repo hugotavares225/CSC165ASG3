@@ -14,13 +14,20 @@ public class GhostAvatar {
 	private Matrix3 rotation;
 	private SceneNode node;
 	private Entity entity;
+	private static int count =0;
 	
 	public GhostAvatar(UUID id, Vector3 position) { 
 		this.id = id;
 		this.position = position;
+		count++;
 
 		
 	}
+
+	public int getGhostAvatarCount() {
+		return count;
+	}
+	
 	/*Set and Return Ghost Avatar ID*/
 	public UUID getID() {
 		return id;

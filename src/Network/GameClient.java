@@ -13,6 +13,9 @@ import javax.vecmath.Vector3d;
 import a3.*;
 import ray.networking.IGameConnection.ProtocolType;
 import ray.networking.client.GameConnectionClient;
+import ray.rage.rendersystem.Renderable.Primitive;
+import ray.rage.scene.Entity;
+import ray.rage.scene.SceneNode;
 import ray.rml.Matrix3;
 import ray.rml.Matrix3f;
 import ray.rml.Vector3;
@@ -141,6 +144,8 @@ protected void processPacket(Object o) {
 			rotateGhostAvatar(ghostID, ghostRotation);
 		}
 		
+
+		
 		//RECEIVE ROTATE MESSAGE FOR PROJECTILE
 		if(msgTokens[0].compareTo("rotateP") == 0) {	// receive "rotate"
 			UUID ghostID = UUID.fromString(msgTokens[1]);
@@ -194,6 +199,7 @@ protected void processPacket(Object o) {
 	}
 } 
 	
+
 	public void sendJoinMessages() {		// format: join,localid
 		try {
 			sendPacket(new String("join," + id.toString()));
@@ -306,6 +312,7 @@ protected void processPacket(Object o) {
 			e.printStackTrace();
 		}
 	}
+	
 	
 	//SEND SCALE MESSAGES FOR PROJECTILE
 	public void sendScaleMessagesP(Vector3 scale) {
@@ -438,6 +445,44 @@ protected void processPacket(Object o) {
 		}
 	}
 	
+	/*Get Ghost Avatar's location*/
+	public List<Vector3> getGhostLocation(UUID ghostID, Vector3 scale) {
+		List<Vector3> ghostLocs = new ArrayList<>(); 
+		try {
+			Iterator<GhostAvatar> itr = ghostAvatars.iterator();
+			while (itr.hasNext()) {
+				GhostAvatar gAvatar = itr.next();	
+				if(gAvatar.getID().equals(ghostID)) {
+					ghostLocs.add(gAvatar.getPosition());
+				}
+			}
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		return ghostLocs;
+	}
+	
+	/*Get Avatar Object Details*/
+	public List<Vector3> getAvatarVehicle(UUID ghostID, Vector3 scale) {
+		List<Vector3> ghostLocs = new ArrayList<>(); 
+		try {
+			Iterator<GhostAvatar> itr = ghostAvatars.iterator();
+			while (itr.hasNext()) {
+				GhostAvatar gAvatar = itr.next();	
+				if(gAvatar.getID().equals(ghostID)) {
+					ghostLocs.add(gAvatar.getPosition());
+				}
+			}
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		return ghostLocs;
+	}
+	
 	/*SCALE GHOST PROJECTILE*/
 	private void scaleGhostProjectile(UUID ghostID, Vector3 scale) {
 		try {
@@ -452,6 +497,7 @@ protected void processPacket(Object o) {
 			e.printStackTrace();
 		}
 	}
+	
 	
 	
 	/*REMOVE GHOST AVATAR*/
@@ -471,6 +517,7 @@ protected void processPacket(Object o) {
 			e.printStackTrace();
 		}
 	}
+	
 	
 	/*REMOVE GHOST PROJECTILE*/
 	private void removeGhostProjectile(UUID ghostID) {

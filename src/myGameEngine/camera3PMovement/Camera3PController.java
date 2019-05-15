@@ -7,6 +7,8 @@ import ray.input.action.AbstractInputAction;
 import ray.input.action.Action;
 import ray.rage.scene.Camera;
 import ray.rage.scene.SceneNode;
+import ray.rml.Angle;
+import ray.rml.Degreef;
 import ray.rml.Vector3;
 import ray.rml.Vector3f;
 
@@ -135,10 +137,12 @@ public class Camera3PController {
 	private class OrbitAroundLeftAction extends AbstractInputAction {
 
 		public void performAction(float time, Event evt) {
-			float rotAmount = -1.0f;		    
+			float rotAmount = 2.0f;		    
 			cameraAzimuth += rotAmount;
 			cameraAzimuth = cameraAzimuth % 360;
 			updateCameraPosition();
+			Angle rotAmt = Degreef.createFrom(rotAmount);
+			target.yaw(rotAmt);
 		}
 	}
 	
@@ -148,10 +152,12 @@ public class Camera3PController {
 	private class OrbitAroundRightAction extends AbstractInputAction {
 		
 		public void performAction(float time, Event evt) {
-			float rotAmount = 1.0f;
+			float rotAmount = -2.0f;
 			cameraAzimuth += rotAmount;
 			cameraAzimuth = cameraAzimuth % 360;
 			updateCameraPosition();
+			Angle rotAmt = Degreef.createFrom(rotAmount);
+			target.yaw(rotAmt);
 		}
 	}
 	

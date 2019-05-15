@@ -16,11 +16,14 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.rmi.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 import java.util.Scanner;
 import java.util.UUID;
 import java.util.Vector;
+import java.util.concurrent.ThreadLocalRandom;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
@@ -31,6 +34,8 @@ import javax.vecmath.Vector3d;
 
 import com.bulletphysics.collision.shapes.SphereShape;
 
+import NPC.NPC;
+import NPC.NPCcontroller;
 import Network.*;
 import ray.input.GenericInputManager;
 import ray.input.InputManager;
@@ -60,6 +65,7 @@ import ray.rage.scene.ManualObject;
 import ray.rage.scene.ManualObjectSection;
 import ray.rage.scene.SceneManager;
 import ray.rage.scene.SceneNode;
+import ray.rage.scene.SkeletalEntity;
 import ray.rage.scene.SkyBox;
 import ray.rage.scene.Tessellation;
 import ray.rage.util.BufferUtil;
@@ -92,6 +98,7 @@ import ray.physics.PhysicsEngineFactory;
 public class MyGame extends VariableFrameRateGame implements MouseListener, MouseMotionListener  {
 	
 	//Declare Action variables
+	private static List<Vector3> ghostLoc = new ArrayList<>();
 	private Camera camera;
 	private Action moveForwardAction, moveLeftAction, moveRightAction,
 		moveBackwardAction, yawLeftAction, yawRightAction, pitchUpAction, 
@@ -102,20 +109,21 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	
 	//Declare Scene node variables
 	private SceneNode cameraNode;
-    private SceneNode dolphinNode;
-    private SceneNode tessN, ballNode, ballNodeOn, ballNodeOff, treeNode, treeNode2;
-    private SceneNode plightNode;
+    private SceneNode vehicleNode;
+    private SceneNode tessN, ballNodeOn, treeNode, treeNode2;
+    private SceneNode plightNode, lightOne, lightTwo;
     private Entity ballOffE;
     
 	private InputManager im; // Input Manager for action classes
 	private SceneManager sm;
 	
-	//Dolphin Scene
-	private List<String> planetsCollidedWith = new ArrayList<String>(); //list of planets already collided with
+	//vehicle Scene
+	private List<String> ballCollidesWithNode = new ArrayList<String>(); //list of planets already collided with
+	private List<String> carCollidesWithNode = new ArrayList<String>(); //list of planets already collided with
 	private List<SceneNode> terrainNodes = new ArrayList<SceneNode>();
 	
 	
-	//Minimizing variable allocation in update /From dolphin click source code
+	//Minimizing variable allocation in update /From vehicle click source code
 	private GL4RenderSystem rs;
 	private float elapsTime = 0.0f;
 	private float projectileTime = 0.0f;
@@ -155,11 +163,31 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	
 	//PHYSICS ENGINE VARIABLES
 	private PhysicsEngine physicsEng;
-	private PhysicsObject carPhysObj, treePhysObj, gndPlane;
+	private PhysicsObject ball1, ball2, gndPlane, car, npcPhy;
 	private boolean shooting = false;
 	private float time;
+	private SceneNode ball1Node;
+	private SceneNode ball2Node;
+	private boolean running = false;
+	private int carId = 1;
+	private float physTime;
 	private static int numOfProjectiles = 0;
-	
+	private static String vehicelEntityName;
+	private static String vehicleObj;
+	private static String vehiclesMat;
+	private static String vehicleTexture;
+	private Entity treeE[];
+	private SceneNode treeN[], treeLight[];
+	private Light theLight[];
+	private PhysicsObject ballsPhysObj[], ball; 
+	private NPCcontroller npcController;
+	private NPC npc;
+	private int numOfNPC;
+	private PhysicsObject[] treeObjs = new PhysicsObject[5];
+	private int count;
+	private GhostAvatar currentGhostAv;
+	private Light ballLight;
+	SceneNode carLightNode;
 
     public MyGame(String serverAddr, int sPort) {
     	super();
@@ -168,6 +196,9 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     	serverProtocol = ProtocolType.UDP;
     }
     
+    /*-------------------------
+     * SETUP STUFF
+     ------------------------*/
 	@Override
 	protected void setupWindow(RenderSystem rs, GraphicsEnvironment ge) {
 		rs.createRenderWindow(new DisplayMode(1000, 700, 24, 60), false);
@@ -194,7 +225,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         cameraNode = rootNode.createChildSceneNode(camera.getName() + "Node");
         cameraNode.attachObject(camera);       
         camera.setMode('n');
-        camera.getFrustum().setFarClipDistance(4000.0f);
+        camera.getFrustum().setFarClipDistance(2000.0f);
 	}
 	
 	/*
@@ -210,46 +241,38 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		List<ScriptEngineFactory> list = factory.getEngineFactories();
 		jsEngine = factory.getEngineByName("js");
 		
-		//use the spin speed setting from the first script to initialze dolphin rotation
+		//use the spin speed setting from the first script to initialze vehicle rotation
 		scriptFile1 = new File("scripts/doubleSpeed.js");
 		runScript(scriptFile1);
 		
-        makeEntities(eng);
+
 
         
 		//**LIGHT**
         //LIGHT SETUP THROGUH SCRIPT
         scriptFile2 = new File("scripts/CreateLight.js");
         jsEngine.put("sm", sm);
-        this.runScript(scriptFile2);
-        plightNode = sm.getRootSceneNode().createChildSceneNode("plightNode");
-        plightNode.attachObject((Light)jsEngine.get("plight"));
-        sm.getAmbientLight().setIntensity(new Color(.1f, .1f, .1f));
+        //this.runScript(scriptFile2);
+        //plightNode = sm.getRootSceneNode().createChildSceneNode("plightNode");
+        //plightNode.attachObject((Light)jsEngine.get("plight"));
+        //sm.getAmbientLight().setIntensity(new Color(.1f, .1f, .1f));
+
+        
         
         
         //Call setup inputs function
+        makeEntities(eng);
 		setupInputs();	
 		setupOrbitCameras(eng, sm);
 		
-		// 2^patches: min=5, def=7, warnings start at 10
-		Tessellation tessE = sm.createTessellation("tessE", 6);
-		// subdivisions per patch: min=0, try up to 32
-		tessE.setSubdivisions(16f);
-		tessN = sm.getRootSceneNode().createChildSceneNode("tessN");
-		tessN.attachObject(tessE);
-		
-		// to move it, note that X and Z must BOTH be positive OR negative
-		// tessN.translate(Vector3f.createFrom(-6.2f, -2.2f, 2.7f));
-		//tessN.yaw(Degreef.createFrom(37.2f));
-		tessN.scale(8000.0f, 55000.0f, 8000.0f);
-		tessE.setTexture(this.getEngine(), "mountain.jpg");
-		tessE.setHeightMap(this.getEngine(), "MountainH.png");
-		tessE.setNormalMap(this.getEngine(),"MountainN.png");
-		setSkyBox(eng);
 
 		
-        //initPhysicsSystem();
-        //createRagePhysicsWorld();		
+		setSkyBox(eng);
+
+        initPhysicsSystem();
+        createRagePhysicsWorld();	
+
+		
 	}
 
 	/*
@@ -260,9 +283,9 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		String gpName = im.getFirstGamepadName();
 		//String msName = im.getMouseName();
 		String kbName = im.getKeyboardName();
-		orbitController1 = new Camera3PController(camera, cameraNode, dolphinNode, gpName, im);
-		orbitController2 = new Camera3PController(camera, cameraNode, dolphinNode, kbName, im);
-		//orbitController3 = new Camera3PController(camera2, cameraNode2, dolphinNode2, msName, im);
+		orbitController1 = new Camera3PController(camera, cameraNode, vehicleNode, gpName, im);
+		orbitController2 = new Camera3PController(camera, cameraNode, vehicleNode, kbName, im);
+		//orbitController3 = new Camera3PController(camera2, cameraNode2, vehicleNode2, msName, im);
 	}
 
 	/*
@@ -270,6 +293,11 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	 */
 	@Override
 	protected void update(Engine engine) {
+		if (currentGhostAv != null) {
+			System.out.println(currentGhostAv.getPosition());
+		}
+		
+
 		String 	dispStr = "Health Remaining: " + health;
 		int topBot = topViewport.getActualBottom();
 			
@@ -288,60 +316,125 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		orbitController1.updateCameraPosition();
 		orbitController2.updateCameraPosition();
 		processNetworking(elapsTime);
-
+		if(npcController!=null) {
+			//npcController.start();
+			npcController.updateNPCs();
+		}
+		
 		//Projectile
 		if (shooting) {
+		
 			//keep track of time starting from 0
 			projectileTime += engine.getElapsedTimeMillis();
 			
 				//projectile doesn't exist so create one and send create message to server
 			    if (ballNodeOn == null) {
-		        ballNodeOn = sm.getRootSceneNode().createChildSceneNode("ballNodeOn");
-		        ballNodeOn.scale(4.5f, 4.5f, 4.5f);
-		        ballNodeOn.attachObject(ballOffE);
-		        ballNodeOn.moveForward(6.0f);
-		        ballNodeOn.setLocalPosition(dolphinNode.getLocalPosition());	
-				ballNodeOn.setLocalRotation(dolphinNode.getLocalRotation());
-				gameClient.sendCreateMessagesP(ballNodeOn.getWorldPosition());
+			        ballNodeOn = sm.getRootSceneNode().createChildSceneNode("ballNodeOn");
+			        ballNodeOn.scale(4.5f, 4.5f, 4.5f);
+			        ballNodeOn.attachObject(ballOffE);	
+			        ballNodeOn.setLocalPosition(vehicleNode.getLocalPosition());	
+					ballNodeOn.setLocalRotation(vehicleNode.getLocalRotation());
+			        ballNodeOn.moveForward(10.0f);
+			        
+
+					gameClient.sendCreateMessagesP(ballNodeOn.getWorldPosition());
+					
+					double[] temptf3 = toDoubleArray(ballNodeOn.getLocalTransform().toFloatArray());
+					ball = physicsEng.addSphereObject(physicsEng.nextUID(), 5f, temptf3, 5.0f);
+					//ball.applyForce(1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+					//car.setBounciness(1.0f);
+					ballNodeOn.setPhysicsObject(ball);
+					
 			    }
 			    
 			    //Move the ball node 
 			    if (ballNodeOn != null) {
-					ballNodeOn.moveForward(30.0f);//ball speed
+			    	
+			    	//Matrix4 ballMat;
+
+					//Get vehicle transform
+			    	ballNodeOn.moveForward(8.0f);//ball speed
+			    	
+					
+					System.out.println(ballNodeOn.getLocalPosition());
 					gameClient.sendMoveMessagesP(ballNodeOn.getWorldPosition());
 					gameClient.sendScaleMessagesP(ballNodeOn.getLocalScale());
 					gameClient.sendRotateMessagesP(ballNodeOn.getWorldRotation());
 					
+					
+					//if collides with object destroy it
 					for (SceneNode element : terrainNodes) {
 						checkCollision(element);
 					}
 	
-					updateProjectilePosition();
+					updateProjectilePosition(ballNodeOn);
+					
 			    }
 			    
-			//Projectile only exists for 2.5 seconds
-			if (projectileTime >= 1500f ) {
-				//System.out.println("Shooting no more");
-				projectileTime = 0f;
-				sm.destroySceneNode(ballNodeOn);
-				ballNodeOn = null;
-				shooting = false;
-			}
+			   
+			    
+
 		}
-			gameClient.sendScaleMessages(dolphinNode.getLocalScale());
-			gameClient.sendRotateMessages(dolphinNode.getWorldRotation());	
+
+		if (running ) { 
+			Matrix4 mat;
+			//update Physics engine
+			physicsEng.update(elapsTime);
+			if (ballNodeOn != null) {
+				//Get vehicle transform
+				double[] temptfBall = toDoubleArray(ballNodeOn.getLocalTransform().toFloatArray());
+				//update car object transform
+				ball.setTransform(temptfBall);
+				
+				
+			}
+			
+			//Get vehicle transform
+			double[] temptf = toDoubleArray(vehicleNode.getLocalTransform().toFloatArray());
+			//update car object transform
+			car.setTransform(temptf);
+			
+			for (SceneNode s : engine.getSceneManager().getSceneNodes()) { 
+				
+				//If the node is a physics object
+				if (s.getPhysicsObject() != null ) { 
+					
+					mat = Matrix4f.createFrom(toFloatArray(
+					s.getPhysicsObject().getTransform()));
+					s.setLocalPosition(mat.value(0,3),mat.value(1,3),
+					mat.value(2,3));
+
+				} 
+			}
+			
+		}
+		//Projectile only exists for 2.5 seconds
+		if (projectileTime >= 300f ) {
+			//System.out.println("Shooting no more");
+			projectileTime = 0f;
+			sm.destroySceneNode(ballNodeOn);
+			ballNodeOn = null;
+			shooting = false;
+		}
+		
+		//carLightNode.setLocalPosition(vehicleNode.getLocalPosition());
+		gameClient.sendScaleMessages(vehicleNode.getLocalScale());
+		gameClient.sendRotateMessages(vehicleNode.getWorldRotation());
+
 
 	}
+	
 
 	/*
 	 * PHYSICS SYSTEM
 	 */
 	private void initPhysicsSystem() { 
+		
 		String engine = "ray.physics.JBullet.JBulletPhysicsEngine";
-		float[] gravity = {0f,-1f, 0f};
+		float[] gravity = {0f, -3f, 0f};
 		physicsEng = PhysicsEngineFactory.createPhysicsEngine(engine);
-		//physicsEng.initSystem();
-		//physicsEng.setGravity(gravity);
+		physicsEng.initSystem();
+		physicsEng.setGravity(gravity);
 
 	}
 	
@@ -349,31 +442,46 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	 * PHYSICS WORLD
 	 */
 	private void createRagePhysicsWorld() {
-		float mass = 1.0f;
-		float up[] = {0.0f, 1.0f, 0.0f};
+		float mass = 2.0f;
+		float up[] = {0.0f, 1f, 0.0f};
 		double[] temptf;
-		float [] tempSize = {1.5f, 1.5f, 1.5f};
-		temptf = toDoubleArray(treeNode.getLocalTransform().toFloatArray());
-		//treePhysObj = physicsEng.addSphereObject(physicsEng.nextUID(), mass, temptf, 2.0f);
-		//treePhysObj.setBounciness((float) 1.0);
-		//treeNode.setPhysicsObject(treePhysObj);
-
 		
-		temptf = toDoubleArray(dolphinNode.getLocalTransform().toFloatArray());
-		//carPhysObj = physicsEng.addSphereObject(physicsEng.nextUID(), mass, temptf, 2.0f);
-		//carPhysObj.setBounciness(1.0f);
-		//dolphinNode.setPhysicsObject(carPhysObj);
+		//ballNode1
+		temptf = toDoubleArray(ball1Node.getLocalTransform().toFloatArray());
+		ball1 = physicsEng.addSphereObject(physicsEng.nextUID(), mass, temptf, 3.0f);
+		//ball1.setBounciness(1.0f);
+		//ball1.setLinearVelocity(linear);
+		//ball1.applyForce(1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+		ball1Node.setPhysicsObject(ball1);
+		
+		//ballNode2
+		temptf = toDoubleArray(ball2Node.getLocalTransform().toFloatArray());
+		ball2 = physicsEng.addSphereObject(physicsEng.nextUID(), mass, temptf, 3.0f);
+		//ball2.setBounciness(1.0f);
+		//ball2.setLinearVelocity(linear);
+		//ball2.applyForce(1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+		ball2Node.setPhysicsObject(ball2);
+		
+		
+		
+		//car
+		temptf = toDoubleArray(vehicleNode.getLocalTransform().toFloatArray());
+		car = physicsEng.addSphereObject(physicsEng.nextUID(), 5f, temptf, 5.0f);
+		car.applyForce(1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+		//car.setBounciness(1.0f);
+		vehicleNode.setPhysicsObject(car);
+		//System.out.println(vehicleNode.getPhysicsObject().getTransform());
+		
 
-		/*temptf = toDoubleArray(tessN.getLocalTransform().toFloatArray());
+
+		//ground plane
+		temptf = toDoubleArray(tessN.getLocalTransform().toFloatArray());
 		gndPlane = physicsEng.addStaticPlaneObject(physicsEng.nextUID(), temptf, up, 0.0f);
 		gndPlane.setBounciness(1.0f);
 		tessN.scale(8000.0f, 55000.0f, 8000.0f);
-		tessN.setPhysicsObject(gndPlane);*/
-		//ballPhysObj.setFriction(1.0f);
-		//ballPhysObj.setLinearVelocity(horizontal);
-		//ballNodeOn.setPhysicsObject(ballPhysObj);
-		//ballNodeOn.setLocalPosition((ballNodeOn.getLocalPosition());
-		
+		tessN.setLocalPosition(0.0f ,0.0f, 0.0f);
+		tessN.setPhysicsObject(gndPlane);
+		running = true;	
 	}
 	
 	/*
@@ -417,31 +525,25 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	 */
 	public void checkCollision(SceneNode nodeObj) {
 		
-
-		//Scene Node Obj
-		Vector3f nodeObjLoc = (Vector3f) nodeObj.getLocalPosition();
+		Vector3f nodeObjLoc = (Vector3f) nodeObj.getLocalPosition(); //terrainNode location
+		Vector3f ballLoc = (Vector3f) ballNodeOn.getLocalPosition(); //ball location	
+		Vector3f ballDistFromObj = (Vector3f)nodeObjLoc.sub(ballLoc); //distance awayfrom ball and terrainNode loc
+				
+		float ballDistFromOb = ballDistFromObj.length(); //
 		
-		//Car loc from Scene Node
-		Vector3f ballLoc = (Vector3f) ballNodeOn.getLocalPosition();
-		Vector3f ballDistFromObj = (Vector3f)nodeObjLoc.sub(ballLoc);
-		
-		
-		float ballDistFromOb = ballDistFromObj.length();
-		
-		//How big the entity is x axis wise
+		//How big the entity is x and y axis wise
 		float nodeObjDis = nodeObj.getLocalScale().x();
+		float nodeObjDisY = nodeObj.getLocalScale().y();
 		
 
-		//When player collides with planet, place the core on the dolphin and make planet smaller
-		if (ballDistFromOb < nodeObjDis + 5 ) {
-			if (!planetsCollidedWith.contains(nodeObj.getName())) {
-				System.out.println("MY OWN COLLISION SHIT NOT FROM THE ENGINE");
-				planetsCollidedWith.add(nodeObj.getName());
-				sm.destroySceneNode(nodeObj.getName());
-				//sm.destroySceneNode(ballNodeOn);
+			//When player collides with planet, place the core on the vehicle and make planet smaller
+			if (ballDistFromOb < nodeObjDis + 8 || ballDistFromOb < nodeObjDisY + 8 ) {
+				if (!ballCollidesWithNode.contains(nodeObj.getName())) {
+					System.out.println("DESTROYED");
+					ballCollidesWithNode.add(nodeObj.getName());
+					sm.destroySceneNode(nodeObj.getName());
+				}
 			}
-		}
-		
 	}
 	
 
@@ -456,14 +558,14 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		SendCloseConnectionPacketAction close = new SendCloseConnectionPacketAction();
 		
 		//Initialize Action Classes
-		moveForwardAction = new MoveForwardAction(dolphinNode, gameClient, this);
-		moveBackwardAction = new MoveBackAction(dolphinNode, gameClient, this);
-		moveLeftAction = new MoveLeftAction(dolphinNode, gameClient, this);
-		moveRightAction = new MoveRightAction(dolphinNode, gameClient, this);
-		yawLeftAction = new YawLeftAction(dolphinNode, gameClient, this);
-		yawRightAction = new YawRightAction(dolphinNode, gameClient, this);
-		pitchUpAction = new PitchUpAction(dolphinNode, gameClient, this);
-		pitchDownAction = new PitchDownAction(dolphinNode, gameClient, this);
+		moveForwardAction = new MoveForwardAction(vehicleNode, gameClient, this);
+		moveBackwardAction = new MoveBackAction(vehicleNode, gameClient, this);
+		moveLeftAction = new MoveLeftAction(vehicleNode, gameClient, this);
+		moveRightAction = new MoveRightAction(vehicleNode, gameClient, this);
+		yawLeftAction = new YawLeftAction(vehicleNode, gameClient, this);
+		yawRightAction = new YawRightAction(vehicleNode, gameClient, this);
+		pitchUpAction = new PitchUpAction(vehicleNode, gameClient, this);
+		pitchDownAction = new PitchDownAction(vehicleNode, gameClient, this);
 		
         shootForward = new ShootForward(this);
 			
@@ -510,6 +612,35 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	 *  CREATE THE ENTITITES
 	 */
 	private void makeEntities(Engine eng) throws IOException {
+        //this.runScript(scriptFile2);
+        //plightNode = sm.getRootSceneNode().createChildSceneNode("plightNode");
+        //plightNode.attachObject((Light)jsEngine.get("plight"));
+        //sm.getAmbientLight().setIntensity(new Color(.1f, .1f, .1f));
+		sm.getAmbientLight().setIntensity(new Color(.4f, .4f, .4f));
+        Light spotLight = sm.createLight("headlight", Light.Type.SPOT);
+        spotLight.setAmbient(new Color(.8f,.1f,.1f));
+        spotLight.setDiffuse(new Color(0.8f, 0.1f, 0.1f));
+        spotLight.setSpecular(new Color(1.0f, 1.0f, 1.0f));
+        spotLight.setRange(20f);
+        
+        
+	
+		// 2^patches: min=5, def=7, warnings start at 10
+		Tessellation tessE = sm.createTessellation("tessE", 6);
+		// subdivisions per patch: min=0, try up to 32
+		tessE.setSubdivisions(16f);
+		tessN = sm.getRootSceneNode().createChildSceneNode("tessN");
+		tessE.setTexture(this.getEngine(), "mountain.jpg");
+		tessE.setHeightMap(this.getEngine(), "MountainH.png");
+		tessE.setNormalMap(this.getEngine(),"MountainN.png");
+		tessN.attachObject(tessE);
+		
+		
+		// to move it, note that X and Z must BOTH be positive OR negative
+		// tessN.translate(Vector3f.createFrom(-6.2f, -2.2f, 2.7f));
+		//tessN.yaw(Degreef.createFrom(37.2f));
+		//tessN.scale(8000.0f, 55000.0f, 8000.0f);
+
 		
         //BALL NODE SETUP
         Entity ballOnE = sm.createEntity("ballOnE", "sphere.obj");
@@ -523,34 +654,82 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		ballOnE.setMaterial(balloffMat);
 		
 		
+
 		//CAR NODE SETUP
-        Entity dolphinE = sm.createEntity("myDolphin", "fullycar3.obj");
-		Material dolphinMat = sm.getMaterialManager().getAssetByPath("fullycar3.mtl");
-	    Texture tex = eng.getTextureManager().getAssetByPath("fullycar3.png"); //Get Texture
+        Entity vehicleE = sm.createEntity("myvehicle", vehicleObj);
+		Material vehicleMat = sm.getMaterialManager().getAssetByPath(vehiclesMat);
+	    Texture tex = eng.getTextureManager().getAssetByPath(vehicleTexture); //Get Texture
 	    TextureState tstate = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
 	    tstate.setTexture(tex); //set texture for black hole
-	    dolphinE.setRenderState(tstate);//
-        dolphinE.setPrimitive(Primitive.TRIANGLES);    
-		dolphinE.setMaterial(dolphinMat);
+	    vehicleE.setRenderState(tstate);//
+        vehicleE.setPrimitive(Primitive.TRIANGLES);    
+		vehicleE.setMaterial(vehicleMat);
 
-        dolphinNode = sm.getRootSceneNode().createChildSceneNode(dolphinE.getName() + "Node");
-        dolphinNode.attachObject(dolphinE);
-        dolphinNode.setLocalPosition(778.5f, 2.5f, 3540.6f);
-		Angle rotAmt = Degreef.createFrom(50f);
-        dolphinNode.yaw(rotAmt);
-        dolphinNode.scale(1.5f, 1.5f, 1.5f);
-
+        vehicleNode = sm.getRootSceneNode().createChildSceneNode(vehicleE.getName() + "Node");
+        vehicleNode.attachObject(vehicleE);
         
-        /*---Set up trees----*/
-        Entity tree1 = sm.createEntity("tree1", "tree.obj");
-        Material treeMat = sm.getMaterialManager().getAssetByPath("tree.mtl");
-        tree1.setPrimitive(Primitive.TRIANGLES);
-        tree1.setMaterial(treeMat);
-        treeNode = sm.getRootSceneNode().createChildSceneNode("treeNode");
-        treeNode.attachObject(tree1);
-        treeNode.setLocalPosition(778.5f, 5.2f, 3572.6f);
-        treeNode.scale(8.0f, 8.0f, 8.0f);
-        terrainNodes.add(treeNode);
+        //HEADLIGHT FOR CAR
+        //carLightNode = sm.getRootSceneNode().createChildSceneNode("carLightNode");
+        	//	carLightNode.attachObject(spotLight);
+        		//plightNode.setLocalPosition(1.0f, 1.0f, 5.0f);
+
+        vehicleNode.setLocalPosition(778.5f, 2.5f, 3540.6f);
+		Angle rotAmt = Degreef.createFrom(46f);
+        vehicleNode.yaw(rotAmt);
+        vehicleNode.scale(1.5f, 1.5f, 1.5f);
+        terrainNodes.add(vehicleNode);
+        
+
+        //treeLight = new SceneNode[40];
+        theLight = new Light[40];
+        treeE = new Entity[120];
+        treeN = new SceneNode[120];
+
+        //TREES ARE CONES
+        //Random r = new Random(seed);
+        /*---Set up tree Entitites----*/
+        Material treeMat = sm.getMaterialManager().getAssetByPath("ownCone.mtl");
+        
+        for (int i = 0; i < treeE.length; i++) {
+        	treeE[i] = sm.createEntity("treeE"+i, "ownCone.obj");
+        	treeE[i].setPrimitive(Primitive.TRIANGLES);
+    	    Texture tex5 = eng.getTextureManager().getAssetByPath("goldTex.jpg"); //Get Texture
+    	    TextureState tstate5 = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+    	    tstate5.setTexture(tex5); //set texture for black hole
+    	    treeE[i].setRenderState(tstate5);//
+            treeE[i].setPrimitive(Primitive.TRIANGLES);   
+            treeE[i].setMaterial(treeMat);
+        }
+        
+        
+        /*---Set up tree nodes----*/
+        
+        for (int i = 0; i < treeN.length; i++) {
+        	int xAxis = ThreadLocalRandom.current().nextInt(-3997, 3990 + 1);       	
+        	int zAxis = ThreadLocalRandom.current().nextInt(-3880, 4100 + 1);
+        	//Tree nodes
+        	treeN[i] = sm.getRootSceneNode().createChildSceneNode("treeN"+i);
+        	treeN[i].attachObject(treeE[i]);
+        	treeN[i].setLocalPosition(xAxis, -5f, zAxis);
+        	treeN[i].scale(200.0f, 200.0f, 200.0f);
+        	//Angle pitch = Degreef.createFrom(-90f);
+        	//treeN[i].pitch(pitch);
+        	
+        	//Light lights
+           /* theLight[i] = sm.createLight("theLight"+i, Light.Type.POINT);
+            theLight[i].setDiffuse(new Color(0.8f, 0.8f, 0.8f));
+            theLight[i].setSpecular(new Color(1.0f, 1.0f, 1.0f));
+            theLight[i].setRange(20f);
+            
+            //Light Nodes
+        	treeLight[i] = sm.getRootSceneNode().createChildSceneNode("treeLight"+i);
+        	treeLight[i].attachObject(theLight[i]);
+        	treeLight[i].setLocalPosition(xAxis, 1.2f, zAxis);
+*/
+        	terrainNodes.add(treeN[i]);
+        	//updateProjectilePosition(treeN[i]);        	
+        }
+                
         
         Entity tree2 = sm.createEntity("tree2", "tree2.obj");
         Material treeMat2 = sm.getMaterialManager().getAssetByPath("tree.mtl");
@@ -561,17 +740,71 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         treeNode2.setLocalPosition(710.5f, 1.2f, 3566.6f);
         treeNode2.scale(12.0f, 12.0f, 12.0f);
         terrainNodes.add(treeNode2);
+        
+        SceneNode plightNode2 =
+        		sm.getRootSceneNode().createChildSceneNode("plightNode2");
+        		//plightNode2.attachObject(spotLight);
+        		plightNode2.setLocalPosition(710.5f, 1.2f, 3566.6f);
+        
+        Entity tree3 = sm.createEntity("tree3", "tree2.obj");
+        Material treeMat3 = sm.getMaterialManager().getAssetByPath("tree.mtl");
+        SceneNode treeNode3 = sm.getRootSceneNode().createChildSceneNode("treeNode3");
+        tree3.setPrimitive(Primitive.TRIANGLES);
+        tree3.setMaterial(treeMat3);
+        treeNode3.attachObject(tree3);
+        treeNode3.setLocalPosition(600.5f, 1.2f, 3566.6f);
+        treeNode3.scale(12.0f, 12.0f, 12.0f);
+        terrainNodes.add(treeNode3);
+        
+
+        //BALL PHYSICS OBJECTS
+	    // Ball 1
+	    SceneNode rootNode = sm.getRootSceneNode();
+	    Entity ball1Entity = sm.createEntity("ball1", "earth.obj");
+	    ball1Node = rootNode.createChildSceneNode("Ball1Node");
+	    ball1Node.attachObject(ball1Entity);
+	    ball1Node.setLocalPosition(770.5f, 3.0f, 3472.0f);
+	    terrainNodes.add(ball1Node);
+	    // Ball 2
+	    Entity ball2Entity = sm.createEntity("Ball2", "earth.obj");
+	    ball2Node = rootNode.createChildSceneNode("Ball2Node");
+	    ball2Node.attachObject(ball2Entity);
+	    ball2Node.setLocalPosition(800.5f,3.0f,3472.0f);
+	    terrainNodes.add(ball2Node);
+
+		//sm = this.getEngine().getSceneManager();
+        Entity npcE = sm.createEntity("npc", "fullycar3.obj");
+        Material npcMat = sm.getMaterialManager().getAssetByPath("fullycar3.mtl");
+        npcE.setPrimitive(Primitive.TRIANGLES);
+        npcE.setMaterial(npcMat);
+        SceneNode npcNode = sm.getRootSceneNode().createChildSceneNode("npcNode");
+        npcNode.attachObject(npcE);
+        npcNode.setLocalPosition(840.5f, 13.2f, 3600.6f);
+        npcNode.scale(8.0f, 8.0f, 8.0f);
+		Angle rotAmtNPC = Degreef.createFrom(166f);
+        npcNode.yaw(rotAmtNPC);
+        npc = new NPC(npcNode.getLocalPosition());
+        terrainNodes.add(npcNode);
+	        
+		npc.setNode(npcNode);
+		npc.setEntity(npcE);	
+		setupNPC();
+
+		//projectile.setNode(ghostN);
+		//projectile.setEntity(ghostE);
+	     
+
 	}
 	
 	//Updare vertical position of the car for terrain
 	public void updateVerticalPosition() {
-		SceneNode dolphinN = this.getEngine().getSceneManager().getSceneNode("myDolphinNode");
+		SceneNode vehicleN = this.getEngine().getSceneManager().getSceneNode("myvehicleNode");
 		SceneNode tessN = this.getEngine().getSceneManager().getSceneNode("tessN");
 		Tessellation tessE = ((Tessellation) tessN.getAttachedObject("tessE"));
 		
 		//Figure out Avatar's position relative to plane
-		Vector3 worldAvatarPosition = dolphinN.getWorldPosition();
-		Vector3 localAvatarPosition = dolphinN.getLocalPosition();
+		Vector3 worldAvatarPosition = vehicleN.getWorldPosition();
+		Vector3 localAvatarPosition = vehicleN.getLocalPosition();
 		float terrHeight = tessE.getWorldHeight(worldAvatarPosition.x()+0.1f, worldAvatarPosition.z()+0.1f);
 		// use avatar World coordinates to get coordinates for height		
 		//Sets Avatar above terrain 
@@ -579,18 +812,18 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 				localAvatarPosition.x(),
 				terrHeight+2.5f,
 				localAvatarPosition.z());
-		dolphinN.setLocalPosition(newAvatarPosition);	
+		vehicleN.setLocalPosition(newAvatarPosition);	
 	}
 	
 	
-	public void updateProjectilePosition() {
-		SceneNode tessN = this.getEngine().getSceneManager().getSceneNode("tessN");
+	public void updateProjectilePosition(SceneNode node) {
+		//SceneNode tessN = this.getEngine().getSceneManager().getSceneNode("tessN");
 		Tessellation tessE = ((Tessellation) tessN.getAttachedObject("tessE"));
 		
 		
 		//Figure out Avatar's position relative to plane
-		Vector3 worldProjectilePosition = ballNodeOn.getWorldPosition();
-		Vector3 localProjectilePosition = ballNodeOn.getLocalPosition();
+		Vector3 worldProjectilePosition = node.getWorldPosition();
+		Vector3 localProjectilePosition = node.getLocalPosition();
 		float terrHeight = tessE.getWorldHeight(worldProjectilePosition.x()+0.1f, worldProjectilePosition.z()+0.1f);
 		
 		//Sets Avatar above terrain 
@@ -598,7 +831,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 				localProjectilePosition.x(),
 				terrHeight+2.5f,
 				localProjectilePosition.z());
-		ballNodeOn.setLocalPosition(newProjectilePosition);	
+		node.setLocalPosition(newProjectilePosition);	
 	}
 	
 	
@@ -617,11 +850,29 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		{
 			System.out.println("You are the host");
 			//GameServerUDP server = new GameServerUDP(serverPort);
+			int avatarNum = selectionMenu();
+		    switch (avatarNum) {
+	        case 1:
+	            //vehicelEntityName = "myVehicle";
+	            vehicleObj = "fullycar3.obj";
+	            vehiclesMat = "fullycar3.mtl";
+	            vehicleTexture = "fullycar3.png";
+	            break;
+	        case 2:
+	            //vehicelEntityName = "myVehicle";
+	            vehicleObj = "truck.obj";
+	            vehiclesMat = "truck.mtl";
+	            vehicleTexture = "fullycar3.png";
+	            break;
+		    }
 			server = new GameServerUDP(serverPort);
 			server.getLocalInetAddress();
-			//System.out.println("The server connection info is " + server.getLocalInetAddress() + ":" + serverPort);
+			//System.out.println("The server connection info is " + server.getLocalInetAddress() + ":" + serverPort);  
+			//System.out.println("Choose Car From Below:");
+			
+			
+			
 			System.out.println("waiting for client connection...");
-
 			String[] msgTokens = server.getLocalInetAddress().toString().split("/");
 			System.out.println(msgTokens[1]);
 			game = new MyGame(msgTokens[1], serverPort);
@@ -635,12 +886,26 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	            game.exit();
 	        }
 		}
-		
-		//If you are joining enter in address
 		else
 		{
 			System.out.println("Enter host server's IP address:");
 			String serverIP = r.nextLine();
+			int avatarNum = selectionMenu();
+		    switch (avatarNum) {
+	        case 1:
+	            //vehicelEntityName = "myVehicle";
+	            vehicleObj = "fullycar3.obj";
+	            vehiclesMat = "fullycar3.mtl";
+	            vehicleTexture = "fullycar3.png";
+	            break;
+	        case 2:
+	            //vehicelEntityName = "myVehicle";
+	            vehicleObj = "truck.obj";
+	            vehiclesMat = "truck.mtl";
+	            vehicleTexture = "fullycar3.png";
+	            break;
+		    }
+			
 			System.out.println("Joining server " + serverIP + ":" + serverPort);
 			game = new MyGame(serverIP, serverPort);
 	        try {
@@ -654,6 +919,20 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	        }
 		}	    
 	}
+	
+	/*Selection Menu*/
+	public static int selectionMenu() {
+        int selection;
+        Scanner input = new Scanner(System.in);
+		
+		System.out.println("Choose Car From Below:");
+		System.out.println("1 - Car");
+		System.out.println("2 - Truck");
+		System.out.print("Enter Choice Number: ");
+        selection = input.nextInt();
+        return selection;  	
+	}
+	
 	
 	
 	/*---------------
@@ -770,8 +1049,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	 * Gets Player Position
 	 ---------------------*/
 	public Vector3 getPlayerPosition() {
-		SceneNode dolphinN = sm.getSceneNode("myDolphinNode");
-		return dolphinN.getWorldPosition();
+		SceneNode vehicleN = sm.getSceneNode("myvehicleNode");
+		return vehicleN.getWorldPosition();
 	}
 	
 	/*---------------------
@@ -786,16 +1065,21 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		//return pos;
 	}
 	
+	public List<SceneNode> getTerrainNodePos() {		
+		return terrainNodes;
+	}
+	
 	/*-----------------------
 	 * Add a new ghost avatar
 	 ----------------------*/
 	public void addGhostAvatarToGameWorld(GhostAvatar avatar, Vector3 pos)
 			throws IOException {
 		if (avatar != null) { 
+
 			//Avatar
 			numOfAvatars += 1;
 			sm = this.getEngine().getSceneManager();
-			Entity ghostE = sm.createEntity("ghosts" + String.valueOf(numOfAvatars), "fullycar3.obj");
+			Entity ghostE = sm.createEntity("ghosts" + String.valueOf(numOfAvatars), vehicleObj);
 			ghostE.setPrimitive(Primitive.TRIANGLES);		
 			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode(avatar.getID().toString());
 			//System.out.println(avatar.getID().toString());
@@ -803,7 +1087,27 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			ghostN.setLocalPosition(pos);
 			avatar.setNode(ghostN);
 			avatar.setEntity(ghostE);
+			count = avatar.getGhostAvatarCount();
+			//currentGhostAv = avatar;
+			System.out.println(count);
 			
+		}
+	}
+	
+	public void addGhostNPCToGameWorld(NPC newNpc, Vector3 pos)
+			throws IOException {
+		if (newNpc != null) { 
+			//Avatar
+			numOfNPC += 1;
+			sm = this.getEngine().getSceneManager();
+			Entity ghostE = sm.createEntity("ghostNPC" + String.valueOf(numOfNPC), "truck.obj");
+			ghostE.setPrimitive(Primitive.TRIANGLES);		
+			SceneNode ghostN = sm.getRootSceneNode().createChildSceneNode("npc"+numOfNPC);
+			//System.out.println(avatar.getID().toString());
+			ghostN.attachObject(ghostE);
+			ghostN.setLocalPosition(pos);
+			newNpc.setNode(ghostN);
+			newNpc.setEntity(ghostE);		
 		}
 	}
 	
@@ -854,5 +1158,9 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 				game.exit();
 			} 
 		}
+	}
+	
+	private void setupNPC()  {
+		npcController = new NPCcontroller(npc);
 	}
 }
