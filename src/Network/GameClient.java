@@ -446,7 +446,7 @@ protected void processPacket(Object o) {
 	}
 	
 	/*Get Ghost Avatar's location*/
-	public List<Vector3> getGhostLocation(UUID ghostID, Vector3 scale) {
+	public List<Vector3> getGhostLocation(UUID ghostID) {
 		List<Vector3> ghostLocs = new ArrayList<>(); 
 		try {
 			Iterator<GhostAvatar> itr = ghostAvatars.iterator();
@@ -463,6 +463,7 @@ protected void processPacket(Object o) {
 		
 		return ghostLocs;
 	}
+	
 	
 	/*Get Avatar Object Details*/
 	public List<Vector3> getAvatarVehicle(UUID ghostID, Vector3 scale) {

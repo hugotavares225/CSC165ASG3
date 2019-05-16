@@ -1,6 +1,5 @@
 package a3;
 
-
 import java.awt.Color;
 import java.awt.DisplayMode;
 import java.awt.GraphicsEnvironment;
@@ -37,6 +36,12 @@ import com.bulletphysics.collision.shapes.SphereShape;
 import NPC.NPC;
 import NPC.NPCcontroller;
 import Network.*;
+import ray.audio.AudioManagerFactory;
+import ray.audio.AudioResource;
+import ray.audio.AudioResourceType;
+import ray.audio.IAudioManager;
+import ray.audio.Sound;
+import ray.audio.SoundType;
 import ray.input.GenericInputManager;
 import ray.input.InputManager;
 import ray.input.action.AbstractInputAction;
@@ -96,7 +101,7 @@ import ray.physics.PhysicsEngineFactory;
 
 
 public class MyGame extends VariableFrameRateGame implements MouseListener, MouseMotionListener  {
-	
+	private Sounds newSound;
 	//Declare Action variables
 	private static List<Vector3> ghostLoc = new ArrayList<>();
 	private Camera camera;
@@ -187,13 +192,23 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	private int count;
 	private GhostAvatar currentGhostAv;
 	private Light ballLight;
-	SceneNode carLightNode;
+	private SceneNode carLightNode;
+	private boolean carIsMoving = false;
 
     public MyGame(String serverAddr, int sPort) {
     	super();
     	serverAddress = serverAddr;
     	serverPort = sPort;
     	serverProtocol = ProtocolType.UDP;
+    	newSound = new Sounds(this);
+    }
+    
+    public void setCarIsMoving (boolean moving) {
+    	carIsMoving = moving;
+    }
+    
+    public boolean carMoving() {
+    	return carIsMoving;
     }
     
     /*-------------------------
@@ -201,7 +216,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
      ------------------------*/
 	@Override
 	protected void setupWindow(RenderSystem rs, GraphicsEnvironment ge) {
-		rs.createRenderWindow(new DisplayMode(1000, 700, 24, 60), false);
+		rs.createRenderWindow(new DisplayMode(1000, 700, 24, 120), false);
+		
 	}
 	
 	// now we add setting up viewports in the window
@@ -225,7 +241,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         cameraNode = rootNode.createChildSceneNode(camera.getName() + "Node");
         cameraNode.attachObject(camera);       
         camera.setMode('n');
-        camera.getFrustum().setFarClipDistance(2000.0f);
+        camera.getFrustum().setFarClipDistance(1000.0f);
 	}
 	
 	/*
@@ -266,12 +282,14 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		setupOrbitCameras(eng, sm);
 		
 
-		
+		//skybox
 		setSkyBox(eng);
 
         initPhysicsSystem();
-        createRagePhysicsWorld();	
-
+        createRagePhysicsWorld();
+        
+        //skyboc
+        newSound.initAudio(sm);
 		
 	}
 
@@ -293,12 +311,16 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	 */
 	@Override
 	protected void update(Engine engine) {
-		if (currentGhostAv != null) {
-			System.out.println(currentGhostAv.getPosition());
-		}
+		String dispStr;
 		
 
-		String 	dispStr = "Health Remaining: " + health;
+		if(currentGhostAv != null) {
+			dispStr = "Your Health:" + currentGhostAv.getHealth(); //"Enenmy Health Remaining: " + health;
+		}
+		
+		else {
+			dispStr = "Waiting for other Player!";
+		}
 		int topBot = topViewport.getActualBottom();
 			
 		// build and set HUD
@@ -323,6 +345,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		
 		//Projectile
 		if (shooting) {
+			
 		
 			//keep track of time starting from 0
 			projectileTime += engine.getElapsedTimeMillis();
@@ -330,11 +353,14 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 				//projectile doesn't exist so create one and send create message to server
 			    if (ballNodeOn == null) {
 			        ballNodeOn = sm.getRootSceneNode().createChildSceneNode("ballNodeOn");
-			        ballNodeOn.scale(4.5f, 4.5f, 4.5f);
+			        ballNodeOn.scale(15.5f, 15.5f, 15.5f);
 			        ballNodeOn.attachObject(ballOffE);	
-			        ballNodeOn.setLocalPosition(vehicleNode.getLocalPosition());	
+			        ballNodeOn.setLocalPosition(vehicleNode.getLocalPosition().x(), 
+			        		vehicleNode.getLocalPosition().y() + 14f, vehicleNode.getLocalPosition().z());
+			        
 					ballNodeOn.setLocalRotation(vehicleNode.getLocalRotation());
 			        ballNodeOn.moveForward(10.0f);
+
 			        
 
 					gameClient.sendCreateMessagesP(ballNodeOn.getWorldPosition());
@@ -344,6 +370,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 					//ball.applyForce(1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 					//car.setBounciness(1.0f);
 					ballNodeOn.setPhysicsObject(ball);
+					newSound.playShotSound(ballNodeOn);
 					
 			    }
 			    
@@ -351,16 +378,20 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			    if (ballNodeOn != null) {
 			    	
 			    	//Matrix4 ballMat;
-
+			    	
 					//Get vehicle transform
-			    	ballNodeOn.moveForward(8.0f);//ball speed
+			    	ballNodeOn.moveForward(20.0f);//ball speed
+			    	
 			    	
 					
-					System.out.println(ballNodeOn.getLocalPosition());
+					//System.out.println(ballNodeOn.getLocalPosition());
 					gameClient.sendMoveMessagesP(ballNodeOn.getWorldPosition());
 					gameClient.sendScaleMessagesP(ballNodeOn.getLocalScale());
 					gameClient.sendRotateMessagesP(ballNodeOn.getWorldRotation());
-					
+					if (currentGhostAv != null) {
+						checkHit(currentGhostAv.getNode());
+						//System.out.println(currentGhostAv.getPosition());
+					}
 					
 					//if collides with object destroy it
 					for (SceneNode element : terrainNodes) {
@@ -409,7 +440,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			
 		}
 		//Projectile only exists for 2.5 seconds
-		if (projectileTime >= 300f ) {
+		if (projectileTime >= 2000f ) {
 			//System.out.println("Shooting no more");
 			projectileTime = 0f;
 			sm.destroySceneNode(ballNodeOn);
@@ -546,6 +577,31 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			}
 	}
 	
+	public void checkHit(SceneNode vehicle) {
+		
+		Vector3f nodeObjLoc = (Vector3f) vehicle.getLocalPosition(); //terrainNode location
+		Vector3f ballLoc = (Vector3f) ballNodeOn.getLocalPosition(); //ball location	
+		Vector3f ballDistFromObj = (Vector3f)nodeObjLoc.sub(ballLoc); //distance awayfrom ball and terrainNode loc
+				
+		float ballDistFromOb = ballDistFromObj.length(); //
+		
+		//How big the entity is x and y axis wise
+		float nodeObjDis = vehicle.getLocalScale().x();
+		float nodeObjDisY = vehicle.getLocalScale().y();
+		
+
+			//When player collides with planet, place the core on the vehicle and make planet smaller
+			if (ballDistFromOb < nodeObjDis + 8 || ballDistFromOb < nodeObjDisY + 8 ) {
+				if (!ballCollidesWithNode.contains(vehicle.getName())) {
+					System.out.println("You've been hit!");
+					health -= 10;
+					currentGhostAv.decreaseHealth(10);
+					ballCollidesWithNode.add(vehicle.getName());
+					//sm.destroySceneNode(vehicle.getName());
+				}
+			}
+	}
+	
 
 	/*
 	 * SETUP INPUTS FOR CONTROLS
@@ -553,7 +609,6 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	protected void setupInputs() {
 		//New input manager
 		im = new GenericInputManager();
-		System.out.print("INPUTSACTIVE");
 		
 		SendCloseConnectionPacketAction close = new SendCloseConnectionPacketAction();
 		
@@ -569,11 +624,10 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		
         shootForward = new ShootForward(this);
 			
-			
+		
 		//attach action objects to keyboard 
     	if(im.getKeyboardName() != null) {
     		String kbName = im.getKeyboardName();
-    		System.out.println("inside key");
     		//move forward with W
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.D,
@@ -594,6 +648,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.Q,
     				yawLeftAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
+    		
     		
     		//yaw left with Q
     		im.associateAction(kbName, 
@@ -684,6 +739,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         theLight = new Light[40];
         treeE = new Entity[120];
         treeN = new SceneNode[120];
+        
 
         //TREES ARE CONES
         //Random r = new Random(seed);
@@ -710,8 +766,9 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         	//Tree nodes
         	treeN[i] = sm.getRootSceneNode().createChildSceneNode("treeN"+i);
         	treeN[i].attachObject(treeE[i]);
-        	treeN[i].setLocalPosition(xAxis, -5f, zAxis);
+
         	treeN[i].scale(200.0f, 200.0f, 200.0f);
+        	treeN[i].setLocalPosition(xAxis, 1f, zAxis);
         	//Angle pitch = Degreef.createFrom(-90f);
         	//treeN[i].pitch(pitch);
         	
@@ -827,11 +884,21 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		float terrHeight = tessE.getWorldHeight(worldProjectilePosition.x()+0.1f, worldProjectilePosition.z()+0.1f);
 		
 		//Sets Avatar above terrain 
-		Vector3 newProjectilePosition = Vector3f.createFrom(
+		if (node == ballNodeOn) {
+ 		Vector3 newProjectilePosition = Vector3f.createFrom(
 				localProjectilePosition.x(),
-				terrHeight+2.5f,
+				terrHeight+15.5f,
 				localProjectilePosition.z());
 		node.setLocalPosition(newProjectilePosition);	
+		}
+		
+		else {
+	 		Vector3 newProjectilePosition = Vector3f.createFrom(
+					localProjectilePosition.x(),
+					terrHeight+1f,
+					localProjectilePosition.z());
+			node.setLocalPosition(newProjectilePosition);	
+		}
 	}
 	
 	
@@ -1088,7 +1155,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			avatar.setNode(ghostN);
 			avatar.setEntity(ghostE);
 			count = avatar.getGhostAvatarCount();
-			//currentGhostAv = avatar;
+			currentGhostAv = avatar;
 			System.out.println(count);
 			
 		}
@@ -1163,4 +1230,16 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	private void setupNPC()  {
 		npcController = new NPCcontroller(npc);
 	}
+	
+	public Sounds getSounds() {
+		return newSound;
+	}
+
+
+
+
+
 }
+
+
+

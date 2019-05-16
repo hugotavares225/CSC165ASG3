@@ -13,7 +13,6 @@ import ray.rml.Vector3;
 import ray.rml.Vector3f;
 
 public class Camera3PController {
-	
 	private Camera camera;			//current camera
 	private SceneNode cameraN;		//node attached to camera
 	private SceneNode target;		//target camera to look at

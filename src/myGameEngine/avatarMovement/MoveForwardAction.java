@@ -22,5 +22,7 @@ public class MoveForwardAction extends AbstractInputAction {
 		avN.moveForward(3.3f);
 		gameClient.sendMoveMessages(avN.getWorldPosition());
 		myGame.updateVerticalPosition();
+		//myGame.setCarIsMoving(true);
+		
 	}
 }
