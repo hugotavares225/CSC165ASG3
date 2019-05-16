@@ -83,6 +83,7 @@ import ray.rml.Vector3;
 import ray.rml.Vector3f;
 import myGameEngine.nodeControllers.*;
 import myGameEngine.shootAction.ShootForward;
+import myGameEngine.shootAction.SwitchLight;
 import net.java.games.input.Event;
 import myGameEngine.avatarMovement.*;
 import myGameEngine.camera3PMovement.*;
@@ -109,7 +110,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		moveBackwardAction, yawLeftAction, yawRightAction, pitchUpAction, 
 		pitchDownAction;
 
-	private Action shootForward;
+	private Action shootForward, switchLight;
 	 
 	
 	//Declare Scene node variables
@@ -191,9 +192,12 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	private PhysicsObject[] treeObjs = new PhysicsObject[5];
 	private int count;
 	private GhostAvatar currentGhostAv;
-	private Light ballLight;
-	private SceneNode carLightNode;
+	//private Light ballLight;
+	private SceneNode ballLightNode;
 	private boolean carIsMoving = false;
+	private Light ballLight;
+	private Light spotLight;
+	private SceneNode plightNode2;
 
     public MyGame(String serverAddr, int sPort) {
     	super();
@@ -216,7 +220,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
      ------------------------*/
 	@Override
 	protected void setupWindow(RenderSystem rs, GraphicsEnvironment ge) {
-		rs.createRenderWindow(new DisplayMode(1000, 700, 24, 120), false);
+		rs.createRenderWindow(new DisplayMode(1000, 700, 24, 30), false);
 		
 	}
 	
@@ -290,6 +294,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         
         //skyboc
         newSound.initAudio(sm);
+        newSound.playWindSound();
 		
 	}
 
@@ -312,7 +317,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	@Override
 	protected void update(Engine engine) {
 		String dispStr;
-		
+		//plightNode2.setLocalPosition(vehicleNode.getWorldPosition().x(),vehicleNode.getWorldPosition().y(),vehicleNode.getWorldPosition().z());
 
 		if(currentGhostAv != null) {
 			dispStr = "Your Health:" + currentGhostAv.getHealth(); //"Enenmy Health Remaining: " + health;
@@ -352,14 +357,17 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			
 				//projectile doesn't exist so create one and send create message to server
 			    if (ballNodeOn == null) {
+			    	sm.getLight("ballLight").setVisible(true);
+			        
 			        ballNodeOn = sm.getRootSceneNode().createChildSceneNode("ballNodeOn");
-			        ballNodeOn.scale(15.5f, 15.5f, 15.5f);
+			        ballNodeOn.scale(4.5f, 4.5f, 4.5f);
 			        ballNodeOn.attachObject(ballOffE);	
 			        ballNodeOn.setLocalPosition(vehicleNode.getLocalPosition().x(), 
-			        		vehicleNode.getLocalPosition().y() + 14f, vehicleNode.getLocalPosition().z());
+			        		vehicleNode.getLocalPosition().y() + 2.5f, vehicleNode.getLocalPosition().z());
 			        
 					ballNodeOn.setLocalRotation(vehicleNode.getLocalRotation());
 			        ballNodeOn.moveForward(10.0f);
+			        ballNodeOn.attachObject(sm.getLight("ballLight"));
 
 			        
 
@@ -376,14 +384,10 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			    
 			    //Move the ball node 
 			    if (ballNodeOn != null) {
-			    	
-			    	//Matrix4 ballMat;
-			    	
+			    				       
 					//Get vehicle transform
-			    	ballNodeOn.moveForward(20.0f);//ball speed
-			    	
-			    	
-					
+			    	ballNodeOn.moveForward(15.0f);//ball speed
+			    					
 					//System.out.println(ballNodeOn.getLocalPosition());
 					gameClient.sendMoveMessagesP(ballNodeOn.getWorldPosition());
 					gameClient.sendScaleMessagesP(ballNodeOn.getLocalScale());
@@ -441,6 +445,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		}
 		//Projectile only exists for 2.5 seconds
 		if (projectileTime >= 2000f ) {
+			sm.getLight("ballLight").setVisible(false);
 			//System.out.println("Shooting no more");
 			projectileTime = 0f;
 			sm.destroySceneNode(ballNodeOn);
@@ -449,6 +454,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		}
 		
 		//carLightNode.setLocalPosition(vehicleNode.getLocalPosition());
+		//plightNode2.setLocalPosition(vehicleNode.getWorldPosition().x(),vehicleNode.getWorldPosition().y(),vehicleNode.getWorldPosition().z());
 		gameClient.sendScaleMessages(vehicleNode.getLocalScale());
 		gameClient.sendRotateMessages(vehicleNode.getWorldRotation());
 
@@ -623,6 +629,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		pitchDownAction = new PitchDownAction(vehicleNode, gameClient, this);
 		
         shootForward = new ShootForward(this);
+        switchLight = new SwitchLight(this);
 			
 		
 		//attach action objects to keyboard 
@@ -655,7 +662,10 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     				net.java.games.input.Component.Identifier.Key.E,
     				yawRightAction, InputManager.INPUT_ACTION_TYPE.REPEAT_WHILE_DOWN);
     		
-    		
+    		//Space bar to turn light off on
+    		im.associateAction(kbName, 
+    				net.java.games.input.Component.Identifier.Key.SPACE,
+    				switchLight, InputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY);
     		//Close client
     		im.associateAction(kbName, 
     				net.java.games.input.Component.Identifier.Key.C,
@@ -671,12 +681,38 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         //plightNode = sm.getRootSceneNode().createChildSceneNode("plightNode");
         //plightNode.attachObject((Light)jsEngine.get("plight"));
         //sm.getAmbientLight().setIntensity(new Color(.1f, .1f, .1f));
-		sm.getAmbientLight().setIntensity(new Color(.4f, .4f, .4f));
-        Light spotLight = sm.createLight("headlight", Light.Type.SPOT);
-        spotLight.setAmbient(new Color(.8f,.1f,.1f));
-        spotLight.setDiffuse(new Color(0.8f, 0.1f, 0.1f));
+		//sm.getAmbientLight().setIntensity(new Color(.4f, .4f, .4f));
+        spotLight = sm.createLight("headlight", Light.Type.SPOT);
+        
+        //spotLight.setAmbient(new Color(.3f,.3f,.3f));
+        //spotLight.setLinearAttenuation(-5f);
+        
+        spotLight.setDiffuse(new Color(0.8f, 0.1f, 0.9f));
         spotLight.setSpecular(new Color(1.0f, 1.0f, 1.0f));
-        spotLight.setRange(20f);
+        spotLight.setRange(100f);
+
+        Light dLight = sm.createLight("dLight", Light.Type.DIRECTIONAL);       
+        dLight.setAmbient(new Color(.3f,.3f,.3f));
+        dLight.setDiffuse(new Color(0.9f, 0.9f, 0.9f));
+        dLight.setSpecular(new Color(1.0f, 1.0f, 1.0f));
+        dLight.setVisible(true);
+
+        SceneNode dLightNode = sm.getRootSceneNode().createChildSceneNode("dLightNode");
+        dLightNode.attachObject(dLight);
+        dLightNode.setLocalPosition(0f, 120f, 0f);
+        
+        Light ballLight = sm.createLight("ballLight", Light.Type.SPOT);       
+        ballLight.setAmbient(new Color(.9f,.9f,.9f));
+        ballLight.setDiffuse(new Color(0.9f, 0.9f, 0.9f));
+        ballLight.setSpecular(new Color(1.0f, 1.0f, 1.0f));
+        ballLight.setVisible(false);
+        
+        //SceneNode ballLightNode = sm.getRootSceneNode().createChildSceneNode("ballLightNode");
+        //dLightNode.attachObject(dLight);
+        //dLightNode.setLocalPosition(0f, 120f, 0f);
+        
+       
+        
         
         
 	
@@ -722,6 +758,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 
         vehicleNode = sm.getRootSceneNode().createChildSceneNode(vehicleE.getName() + "Node");
         vehicleNode.attachObject(vehicleE);
+        vehicleNode.attachObject(spotLight);
         
         //HEADLIGHT FOR CAR
         //carLightNode = sm.getRootSceneNode().createChildSceneNode("carLightNode");
@@ -781,8 +818,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
             //Light Nodes
         	treeLight[i] = sm.getRootSceneNode().createChildSceneNode("treeLight"+i);
         	treeLight[i].attachObject(theLight[i]);
-        	treeLight[i].setLocalPosition(xAxis, 1.2f, zAxis);
-*/
+        	treeLight[i].setLocalPosition(xAxis, 1.2f, zAxis);*/
         	terrainNodes.add(treeN[i]);
         	//updateProjectilePosition(treeN[i]);        	
         }
@@ -798,10 +834,10 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         treeNode2.scale(12.0f, 12.0f, 12.0f);
         terrainNodes.add(treeNode2);
         
-        SceneNode plightNode2 =
+        /*SceneNode plightNode2 =
         		sm.getRootSceneNode().createChildSceneNode("plightNode2");
         		//plightNode2.attachObject(spotLight);
-        		plightNode2.setLocalPosition(710.5f, 1.2f, 3566.6f);
+        		plightNode2.setLocalPosition(710.5f, 1.2f, 3566.6f);*/
         
         Entity tree3 = sm.createEntity("tree3", "tree2.obj");
         Material treeMat3 = sm.getMaterialManager().getAssetByPath("tree.mtl");
@@ -887,7 +923,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		if (node == ballNodeOn) {
  		Vector3 newProjectilePosition = Vector3f.createFrom(
 				localProjectilePosition.x(),
-				terrHeight+15.5f,
+				terrHeight+2.5f,
 				localProjectilePosition.z());
 		node.setLocalPosition(newProjectilePosition);	
 		}
@@ -1233,6 +1269,14 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	
 	public Sounds getSounds() {
 		return newSound;
+	}
+
+	public void setLight() {
+		if (sm.getLight("dLight").isVisible()) {
+			sm.getLight("dLight").setVisible(false);
+		}
+		else
+			sm.getLight("dLight").setVisible(true);
 	}
 
 

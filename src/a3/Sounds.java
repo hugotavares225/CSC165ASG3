@@ -10,7 +10,7 @@ import ray.rml.Vector3f;
 public class Sounds {
 	
 	  IAudioManager audioMgr;  
-	  Sound drivingSound, shotSound;
+	  Sound windSound, shotSound;
 	  MyGame game;
 	  public Sounds (MyGame g) {
 		  game = g;
@@ -34,12 +34,12 @@ public class Sounds {
 			System.out.println("Audio Manager failed to initialize!");     
 			return;    
 			}     
-		resource1 = audioMgr.createAudioResource("driving.wav",AudioResourceType.AUDIO_SAMPLE);      
-		drivingSound = new Sound(resource1,SoundType.SOUND_EFFECT, 100, true);      
-		drivingSound.initialize(audioMgr);       
-		drivingSound.setMaxDistance(10.0f);    
-		drivingSound.setMinDistance(0.5f);    
-		drivingSound.setRollOff(5.0f); 
+		resource1 = audioMgr.createAudioResource("wind.wav",AudioResourceType.AUDIO_SAMPLE);      
+		windSound = new Sound(resource1,SoundType.SOUND_MUSIC, 100, true);      
+		windSound.initialize(audioMgr);       
+		windSound.setMaxDistance(10.0f);    
+		windSound.setMinDistance(0.5f);    
+		windSound.setRollOff(5.0f); 
 		
 		resource2 = audioMgr.createAudioResource("shot.wav",AudioResourceType.AUDIO_SAMPLE);      
 		shotSound = new Sound(resource2,SoundType.SOUND_EFFECT, 100, false);      
@@ -53,12 +53,12 @@ public class Sounds {
 		} 
 	
 	
-	public void playDrivingSound() {
-		drivingSound.play();
+	public void playWindSound() {
+		windSound.play();
 	}
 	
-	public void stopDrivingSound() {
-		drivingSound.stop();
+	public void stopWindSound() {
+		windSound.stop();
 	}
 	
 	public void playShotSound(SceneNode n) {
