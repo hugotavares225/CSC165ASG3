@@ -136,7 +136,7 @@ public class Camera3PController {
 	private class OrbitAroundLeftAction extends AbstractInputAction {
 
 		public void performAction(float time, Event evt) {
-			float rotAmount = 2.0f;		    
+			float rotAmount = 3.2f;		    
 			cameraAzimuth += rotAmount;
 			cameraAzimuth = cameraAzimuth % 360;
 			updateCameraPosition();
@@ -151,7 +151,7 @@ public class Camera3PController {
 	private class OrbitAroundRightAction extends AbstractInputAction {
 		
 		public void performAction(float time, Event evt) {
-			float rotAmount = -2.0f;
+			float rotAmount = -3.2f;
 			cameraAzimuth += rotAmount;
 			cameraAzimuth = cameraAzimuth % 360;
 			updateCameraPosition();

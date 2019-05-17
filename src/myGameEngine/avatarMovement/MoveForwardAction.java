@@ -19,7 +19,7 @@ public class MoveForwardAction extends AbstractInputAction {
 	}
 	
 	public void performAction(float time, Event e) { 
-		avN.moveForward(3.3f);
+		avN.moveForward(5.0f);
 		gameClient.sendMoveMessages(avN.getWorldPosition());
 		myGame.updateVerticalPosition();
 		//myGame.setCarIsMoving(true);

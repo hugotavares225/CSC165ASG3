@@ -14,7 +14,7 @@ public class GhostAvatar {
 	private Matrix3 rotation;
 	private SceneNode node;
 	private Entity entity;
-	private int health = 100;
+	private int health = 0;
 	private static int count =0;
 	
 	public GhostAvatar(UUID id, Vector3 position) { 
@@ -44,7 +44,7 @@ public class GhostAvatar {
 	}
 	
 	public void decreaseHealth(int h) {
-		health -= h;
+		health += h;
 	}
 	
 	public void setPosition(Vector3 position) {

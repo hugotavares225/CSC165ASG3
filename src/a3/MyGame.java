@@ -161,7 +161,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	
 	//GAME VARIABLES
 	private static MyGame game;
-	private int health = 100;
+	private int health = 0;
 	
 	//PHYSICS ENGINE VARIABLES
 	private PhysicsEngine physicsEng;
@@ -187,10 +187,10 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	private PhysicsObject[] treeObjs = new PhysicsObject[5];
 	private int count;
 	private GhostAvatar currentGhostAv;
-	//private Light ballLight;
-	private boolean carIsMoving = false;
+	
 	private Light spotLight; //spotlight for car
 	private Sounds newSound; //sound class
+	PhysicsObject obj[];
 
     public MyGame(String serverAddr, int sPort) {
     	super();
@@ -198,14 +198,6 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
     	serverPort = sPort;
     	serverProtocol = ProtocolType.UDP;
     	newSound = new Sounds(this);
-    }
-    
-    public void setCarIsMoving (boolean moving) {
-    	carIsMoving = moving;
-    }
-    
-    public boolean carMoving() {
-    	return carIsMoving;
     }
     
     /*-------------------------
@@ -303,19 +295,26 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	 */
 	@Override
 	protected void update(Engine engine) {
+
 		String dispStr;
 		//plightNode2.setLocalPosition(vehicleNode.getWorldPosition().x(),vehicleNode.getWorldPosition().y(),vehicleNode.getWorldPosition().z());
-
-		if(currentGhostAv != null) {
-			//"Enenmy Health Remaining: " + health;
-			dispStr = "Enemy Health:" + currentGhostAv.getHealth() + 
-					"                                                                            SHOOT AT OTHER PLAYER!";
+		if (health < 5 ) {
+			if(currentGhostAv != null) {
+				//"Enenmy Health Remaining: " + health;
+				dispStr = "Shots On Target:" + currentGhostAv.getHealth()  + "/5"+ 
+						"                                                                           SHOOT AT OTHER PLAYER!";
+			}
+			
+			else {
+				dispStr = "Waiting for other Player!";
+	
+			}
 		}
-		
-		else {
-			dispStr = "Waiting for other Player!";
-
+		else if (health >= 5) {
+			dispStr = "YOU WIN!!!!!! YOU WIN!!!!! YOU WIN!!!! YOU WIN!!!!!! YOU WIN!!!! YOU WIN!!!!! YOU WIN!!!!!";
+			vehicleNode.setLocalPosition(400, 400, 400);
 		}
+		else {dispStr = "ok";};
 		int topBot = topViewport.getActualBottom();
 			
 		// build and set HUD
@@ -364,7 +363,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 					gameClient.sendCreateMessagesP(ballNodeOn.getWorldPosition());
 					
 					double[] temptf3 = toDoubleArray(ballNodeOn.getLocalTransform().toFloatArray());
-					ball = physicsEng.addSphereObject(physicsEng.nextUID(), 5f, temptf3, 5.0f);
+					ball = physicsEng.addSphereObject(physicsEng.nextUID(), 5f, temptf3, 10.0f);
 					//ball.applyForce(1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 					//car.setBounciness(1.0f);
 					ballNodeOn.setPhysicsObject(ball);
@@ -376,7 +375,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			    if (ballNodeOn != null) {
 			    				       
 					//Get vehicle transform
-			    	ballNodeOn.moveForward(15.0f);//ball speed
+			    	ballNodeOn.moveForward(20.0f);//ball speed
 			    					
 					//System.out.println(ballNodeOn.getLocalPosition());
 					gameClient.sendMoveMessagesP(ballNodeOn.getWorldPosition());
@@ -409,15 +408,18 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 				//Get vehicle transform
 				double[] temptfBall = toDoubleArray(ballNodeOn.getLocalTransform().toFloatArray());
 				//update car object transform
-				ball.setTransform(temptfBall);
-				
-				
+				ball.setTransform(temptfBall);							
 			}
 			
 			//Get vehicle transform
 			double[] temptf = toDoubleArray(vehicleNode.getLocalTransform().toFloatArray());
 			//update car object transform
 			car.setTransform(temptf);
+			
+	        /*for (int i = 0; i < 60; i++) {
+	        	double[] temptfs = toDoubleArray(treeN[i].getLocalTransform().toFloatArray());
+	        	obj[i].setTransform(temptfs);
+	        }*/
 			
 			for (SceneNode s : engine.getSceneManager().getSceneNodes()) { 
 				
@@ -490,12 +492,21 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		//ball2.setLinearVelocity(linear);
 		//ball2.applyForce(1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 		ball2Node.setPhysicsObject(ball2);
+		obj = new PhysicsObject[treeN.length];
+
+        for (int i = 0; i < treeN.length; i++) {
+        	double[] temptf2 = toDoubleArray(treeN[i].getLocalTransform().toFloatArray());
+        	obj[i] = physicsEng.addSphereObject(physicsEng.nextUID(), mass, temptf2, 5.5f);
+        	//obj[i] = physicsEng.addConeObject(physicsEng.nextUID(), mass, temptf2, 30.0f, 8.0f);
+        	treeN[i].scale(50,50,50);
+        	treeN[i].setPhysicsObject(obj[i]);
+        }
 		
 		
 		
 		//car
 		temptf = toDoubleArray(vehicleNode.getLocalTransform().toFloatArray());
-		car = physicsEng.addSphereObject(physicsEng.nextUID(), 5f, temptf, 5.0f);
+		car = physicsEng.addSphereObject(physicsEng.nextUID(), 5f, temptf, 10.0f);
 		car.applyForce(1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
 		//car.setBounciness(1.0f);
 		vehicleNode.setPhysicsObject(car);
@@ -592,8 +603,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			if (ballDistFromOb < nodeObjDis + 8 || ballDistFromOb < nodeObjDisY + 8 ) {
 				if (!ballCollidesWithNode.contains(vehicle.getName())) {
 					System.out.println("You've been hit!");
-					health -= 10;
-					currentGhostAv.decreaseHealth(10);
+					health += 1;
+					currentGhostAv.decreaseHealth(1);
 					ballCollidesWithNode.add(vehicle.getName());
 					//sm.destroySceneNode(vehicle.getName());
 				}
@@ -733,10 +744,10 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         vehicleNode.attachObject(vehicleE);
         vehicleNode.attachObject(spotLight);
 
-        vehicleNode.setLocalPosition(778.5f, 2.5f, 3540.6f);
+        vehicleNode.setLocalPosition(778.5f, 4.5f, 3540.6f);
 		Angle rotAmt = Degreef.createFrom(46f);
         vehicleNode.yaw(rotAmt);
-        vehicleNode.scale(1.5f, 1.5f, 1.5f);
+        vehicleNode.scale(2.5f, 2.5f, 2.5f);
         terrainNodes.add(vehicleNode);
         
         treeE = new Entity[120];
@@ -746,49 +757,44 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         //TREES ARE CONES
         //Random r = new Random(seed);
         /*---Set up tree Entitites----*/
-        /*Material treeMat = sm.getMaterialManager().getAssetByPath("ownCone.mtl");
-        
+        Material treeMat = sm.getMaterialManager().getAssetByPath("ownCone.mtl");
+	    Texture tex5 = eng.getTextureManager().getAssetByPath("goldTex.jpg"); //Get Texture
+	    TextureState tstate5 = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
+	    tstate5.setTexture(tex5); //set texture for black hole
         for (int i = 0; i < treeE.length; i++) {
         	treeE[i] = sm.createEntity("treeE"+i, "ownCone.obj");
         	treeE[i].setPrimitive(Primitive.TRIANGLES);
-    	    Texture tex5 = eng.getTextureManager().getAssetByPath("goldTex.jpg"); //Get Texture
-    	    TextureState tstate5 = (TextureState) sm.getRenderSystem().createRenderState(RenderState.Type.TEXTURE);
-    	    tstate5.setTexture(tex5); //set texture for black hole
+
     	    treeE[i].setRenderState(tstate5);//
             treeE[i].setPrimitive(Primitive.TRIANGLES);   
             treeE[i].setMaterial(treeMat);
-        }*/
+        }
         
         
         /*---Set up tree nodes----*/
         
-        /*for (int i = 0; i < treeN.length; i++) {
+        for (int i = 0; i < treeN.length; i++) {
         	int xAxis = ThreadLocalRandom.current().nextInt(-3997, 3990 + 1);       	
         	int zAxis = ThreadLocalRandom.current().nextInt(-3880, 4100 + 1);
         	//Tree nodes
         	treeN[i] = sm.getRootSceneNode().createChildSceneNode("treeN"+i);
         	treeN[i].attachObject(treeE[i]);
-
-        	treeN[i].scale(200.0f, 200.0f, 200.0f);
-        	treeN[i].setLocalPosition(xAxis, 1f, zAxis);
-        	//Angle pitch = Degreef.createFrom(-90f);
-        	//treeN[i].pitch(pitch);
-        
-        	terrainNodes.add(treeN[i]);
-        	//updateProjectilePosition(treeN[i]);        	
-        }*/
+        	treeN[i].setLocalPosition(xAxis, 6.0f, zAxis);
+        	terrainNodes.add(treeN[i]);       	
+        }
                         
 
         //BALL PHYSICS OBJECTS
 	    // Ball 1
 	    SceneNode rootNode = sm.getRootSceneNode();
-	    Entity ball1Entity = sm.createEntity("ball1", "earth.obj");
+	    Entity ball1Entity = sm.createEntity("ball1", "cube.obj");
 	    ball1Node = rootNode.createChildSceneNode("Ball1Node");
 	    ball1Node.attachObject(ball1Entity);
+	    //ball1Node.scale(3, 3, 3);
 	    ball1Node.setLocalPosition(770.5f, 3.0f, 3472.0f);
 	    terrainNodes.add(ball1Node);
 	    // Ball 2
-	    Entity ball2Entity = sm.createEntity("Ball2", "earth.obj");
+	    Entity ball2Entity = sm.createEntity("Ball2", "cube.obj");
 	    ball2Node = rootNode.createChildSceneNode("Ball2Node");
 	    ball2Node.attachObject(ball2Entity);
 	    ball2Node.setLocalPosition(800.5f,3.0f,3472.0f);
@@ -828,7 +834,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		//Sets Avatar above terrain 
 		Vector3 newAvatarPosition = Vector3f.createFrom(
 				localAvatarPosition.x(),
-				terrHeight+2.5f,
+				terrHeight+4.5f,
 				localAvatarPosition.z());
 		vehicleN.setLocalPosition(newAvatarPosition);	
 	}
@@ -890,7 +896,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	            //vehicelEntityName = "myVehicle";
 	            vehicleObj = "truck.obj";
 	            vehiclesMat = "truck.mtl";
-	            vehicleTexture = "fullycar3.png";
+	            vehicleTexture = "truckv1.png";
 	            break;
 		    }
 			server = new GameServerUDP(serverPort);
@@ -916,6 +922,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 		}
 		else
 		{
+			
 			System.out.println("Enter host server's IP address:");
 			String serverIP = r.nextLine();
 			int avatarNum = selectionMenu();
@@ -1101,7 +1108,7 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	 * Add a new ghost avatar
 	 ----------------------*/
 	public void addGhostAvatarToGameWorld(GhostAvatar avatar, Vector3 pos)
-			throws IOException {
+		throws IOException {
 		if (avatar != null) { 
 
 			//Avatar
@@ -1117,9 +1124,9 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 			avatar.setEntity(ghostE);
 			count = avatar.getGhostAvatarCount();
 			currentGhostAv = avatar;
-			System.out.println(count);
-			
+			//System.out.println(count);			
 		}
+		
 	}
 	
 	public void addGhostNPCToGameWorld(NPC newNpc, Vector3 pos)
