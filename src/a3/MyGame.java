@@ -750,8 +750,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
         vehicleNode.scale(2.5f, 2.5f, 2.5f);
         terrainNodes.add(vehicleNode);
         
-        treeE = new Entity[120];
-        treeN = new SceneNode[120];
+        treeE = new Entity[60];
+        treeN = new SceneNode[60];
         
 
         //TREES ARE CONES
@@ -801,14 +801,14 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	    terrainNodes.add(ball2Node);
 
 		//sm = this.getEngine().getSceneManager();
-        Entity npcE = sm.createEntity("npc", "fullycar3.obj");
-        Material npcMat = sm.getMaterialManager().getAssetByPath("fullycar3.mtl");
+        Entity npcE = sm.createEntity("npc", "man.obj");
+        Material npcMat = sm.getMaterialManager().getAssetByPath("man.mtl");
         npcE.setPrimitive(Primitive.TRIANGLES);
         npcE.setMaterial(npcMat);
         SceneNode npcNode = sm.getRootSceneNode().createChildSceneNode("npcNode");
         npcNode.attachObject(npcE);
-        npcNode.setLocalPosition(840.5f, 13.2f, 3600.6f);
-        npcNode.scale(8.0f, 8.0f, 8.0f);
+        npcNode.setLocalPosition(840.5f, 1.0f, 3600.6f);
+        npcNode.scale(50.0f, 50.0f, 50.0f);
 		Angle rotAmtNPC = Degreef.createFrom(166f);
         npcNode.yaw(rotAmtNPC);
         npc = new NPC(npcNode.getLocalPosition());
@@ -894,8 +894,8 @@ public class MyGame extends VariableFrameRateGame implements MouseListener, Mous
 	            break;
 	        case 2:
 	            //vehicelEntityName = "myVehicle";
-	            vehicleObj = "truck.obj";
-	            vehiclesMat = "truck.mtl";
+	            vehicleObj = "truckv1.obj";
+	            vehiclesMat = "truckv1.mtl";
 	            vehicleTexture = "truckv1.png";
 	            break;
 		    }
